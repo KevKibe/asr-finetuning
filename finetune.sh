@@ -102,7 +102,7 @@ if [ ! -d "$ASR_DIR" ]; then
     exit 1
 fi
 
-export PYTHONPATH="$ASR_DIR/src:$ASR_DIR:$PYTHONPATH"
+export PYTHONPATH="$ASR_DIR/src:$ASR_DIR:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 
 python3 -u -m workflows.recipes.wav2vec2.asr \
