@@ -85,6 +85,7 @@ echo ""
 
 # Step 4: Run finetuning
 CONFIG_NAME="$DATASET_NAME-$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')-finetune.yaml"
+
 log_step "Starting finetuning..."
 echo "Config: $CONFIG_NAME"
 echo "Output: $OUTPUT_DIR"
@@ -94,15 +95,15 @@ cd "$SCRIPT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
 export PYTHONPATH="$SCRIPT_DIR/omnilingual-asr/src:$SCRIPT_DIR/omnilingual-asr:$PYTHONPATH"
+export PYTHONUNBUFFERED=1
 
-PYTHONUNBUFFERABLE=1 python3 -u -m workflows.recipes.wav2vec2.asr \
+python3 -u -m workflows.recipes.wav2vec2.asr \
     "$OUTPUT_DIR" \
     --config-file "$SCRIPT_DIR/omnilingual-asr/workflows/recipes/wav2vec2/asr/configs/$CONFIG_NAME" \
     --config dataset.config_overrides.data="$DATASET_DIR" \
-    2>&1 | tee "$SCRIPT_DIR/training.log" | grep --line-buffered -E "INFO|WARNING|ERROR|step|loss|lr|epoch|checkpoint"
+    2>&1 | tee "$SCRIPT_DIR/training.log"
 
 log_success "Finetuning completed"
-echo ""
 
 # Step 5: Extract best checkpoint
 log_step "Extracting best checkpoint..."
