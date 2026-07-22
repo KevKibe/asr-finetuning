@@ -3,9 +3,6 @@ from pathlib import Path
 import json
 import shutil
 
-import torch
-from safetensors.torch import save_file
-
 
 # Get paths from command-line arguments or use defaults
 ROOT_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd() / "finetuning_output"
@@ -146,16 +143,19 @@ def main():
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Convert weights to safetensors
+    # Copy model weights in original format
     weight_path = best_ckpt / "model/pp_00/tp_00/sdp_00.pt"
-    print(f"Loading: {weight_path}")
-    state_dict = torch.load(weight_path, map_location="cpu")
-    save_file(state_dict, EXPORT_DIR / "model.safetensors")
-    print("Saved model.safetensors")
+    if weight_path.exists():
+        print(f"Copying: {weight_path}")
+        shutil.copy(weight_path, EXPORT_DIR / "model.pt")
+        print("Saved model.pt")
+    else:
+        print(f"Warning: Model weights not found at {weight_path}")
 
-    # Copy config files
+    # Copy config and checkpoint structure
     copy_if_exists(run_dir / "config.yaml", EXPORT_DIR / "config.yaml")
     copy_if_exists(run_dir / "checkpoints/model.yaml", EXPORT_DIR / "model.yaml")
+    copytree_if_exists(best_ckpt / "model", EXPORT_DIR / "model")
 
     # Copy useful artifacts
     copytree_if_exists(run_dir / "metrics", EXPORT_DIR / "metrics")
