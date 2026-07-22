@@ -48,7 +48,7 @@ else:
     is_llm = "llm" in model_name.lower()
     
     if is_llm:
-        num_steps = 10_000
+        num_steps = 7_500
         validate_every = 2_500
         checkpoint_every = 2_500
         publish_every = 2_500
