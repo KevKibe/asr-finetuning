@@ -17,6 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo -e "${YELLOW}Setting up Omnilingual ASR environment...${NC}"
 echo "Script directory: $SCRIPT_DIR"
 
+# Install system dependencies
+echo -e "${YELLOW}Installing system dependencies...${NC}"
+apt-get install -y --no-install-recommends libsndfile1 ffmpeg git 2>/dev/null || true
+
 # Clone repository into script directory
 echo -e "${YELLOW}Cloning omnilingual-asr repository...${NC}"
 if [ -d "$SCRIPT_DIR/omnilingual-asr" ]; then
