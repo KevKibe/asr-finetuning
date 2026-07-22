@@ -29,8 +29,19 @@ fi
 
 DATASET_REPO="$1"
 MODEL_NAME="$2"
-OUTPUT_REPO="${3:-${DATASET_REPO}-finetuned}"
-HF_TOKEN="${4:-${HF_TOKEN:-}}"
+
+# Parse optional flags
+TEST_FLAG=""
+OUTPUT_REPO="${DATASET_REPO}-finetuned"
+HF_TOKEN="${HF_TOKEN:-}"
+
+for arg in "${@:3}"; do
+    case "$arg" in
+        --test) TEST_FLAG="--test" ;;
+        hf_*|*:*) HF_TOKEN="$arg" ;;
+        *) OUTPUT_REPO="$arg" ;;
+    esac
+done
 
 # Color output
 RED='\033[0;31m'
@@ -79,12 +90,13 @@ echo ""
 
 # Step 3: Generate config
 log_step "Generating finetuning config..."
-python3 generate_config.py "$DATASET_DIR" "$MODEL_NAME"
+python3 generate_config.py "$DATASET_DIR" "$MODEL_NAME" ${TEST_FLAG}
 log_success "Config generated"
 echo ""
 
 # Step 4: Run finetuning
-CONFIG_NAME="$DATASET_NAME-$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')-finetune.yaml"
+BASE_CONFIG="$DATASET_NAME-$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')-finetune.yaml"
+CONFIG_NAME="${BASE_CONFIG%.yaml}${TEST_FLAG:+-test}.yaml"
 
 log_step "Starting finetuning..."
 echo "Config: $CONFIG_NAME"

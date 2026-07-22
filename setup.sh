@@ -19,7 +19,7 @@ echo "Script directory: $SCRIPT_DIR"
 
 # Install system dependencies
 echo -e "${YELLOW}Installing system dependencies...${NC}"
-apt-get install -y --no-install-recommends libsndfile1 ffmpeg git 2>/dev/null || true
+apt-get update -qq && apt-get install -y --no-install-recommends libsndfile1 ffmpeg git
 
 # Clone repository into script directory
 echo -e "${YELLOW}Cloning omnilingual-asr repository...${NC}"
