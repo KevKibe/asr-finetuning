@@ -39,7 +39,7 @@ if test_mode:
     checkpoint_every = 5
     publish_every = 1
     min_audio = 16_000
-    max_audio = 64_000      
+    max_audio = 32_000      
     max_num_elements = 32_000 
     grad_accum = 1          
     print("*** SMOKE TEST MODE ***")
