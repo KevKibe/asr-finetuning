@@ -53,9 +53,9 @@ else:
         checkpoint_every = 2_500
         publish_every = 2_500
         min_audio = 32_000
-        max_audio = 320_000
-        max_num_elements = 320_000
-        grad_accum = 1
+        max_audio = 160_000          # ← reduced from 320_000
+        max_num_elements = 160_000   # ← reduced from 320_000
+        grad_accum = 4               # ← increased from 1
         use_fsdp = True
     else:  # CTC model
         num_steps = 10_000
