@@ -94,6 +94,12 @@ echo ""
 cd "$SCRIPT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
+# Ensure omnilingual-asr exists
+if [ ! -d "$SCRIPT_DIR/omnilingual-asr" ]; then
+    log_error "omnilingual-asr directory not found. Run setup.sh first."
+    exit 1
+fi
+
 export PYTHONPATH="$SCRIPT_DIR/omnilingual-asr/src:$SCRIPT_DIR/omnilingual-asr:$PYTHONPATH"
 export PYTHONUNBUFFERED=1
 

@@ -9,21 +9,31 @@ if len(sys.argv) < 2:
 root = Path(sys.argv[1])
 model_name = sys.argv[2] if len(sys.argv) > 2 else "omniASR_CTC_300M"
 
-config_name = f"{root.name}-{model_name.lower()}-finetune.yaml"
+# Use absolute path or relative to current directory
+if not root.is_absolute():
+    root = Path.cwd() / root
 
-output_dir = Path.cwd() / "finetuning_output"
-asr_dir = Path.cwd() / "omnilingual-asr"
+# Determine config output directory
+# Look for omnilingual-asr in current directory or parent
+script_dir = Path.cwd()
+omni_dir = script_dir / "omnilingual-asr"
+
+if not omni_dir.exists():
+    # Try parent directory
+    omni_dir = script_dir.parent / "omnilingual-asr"
+
+config_dir = omni_dir / "workflows/recipes/wav2vec2/asr/configs"
+config_dir.mkdir(parents=True, exist_ok=True)
+
+config_name = f"{root.name}-{model_name.lower()}-finetune.yaml"
+config_path = config_dir / config_name
 
 print(f"""
 Root: {root}
 Model: {model_name}
 Config: {config_name}
+Config dir: {config_dir}
 """)
-
-config_path = Path(
-    "omnilingual-asr/workflows/recipes/wav2vec2/asr/configs/"
-    f"{root.name}-{model_name.lower()}-finetune.yaml"
-)
 
 config = f"""
 model:

@@ -11,7 +11,11 @@ echo -e "${YELLOW}Setting up Omnilingual ASR environment...${NC}"
 
 # Clone repository
 echo -e "${YELLOW}Cloning omnilingual-asr repository...${NC}"
-git clone https://github.com/facebookresearch/omnilingual-asr
+if [ -d "omnilingual-asr" ]; then
+    echo "omnilingual-asr already exists, skipping clone"
+else
+    git clone https://github.com/facebookresearch/omnilingual-asr
+fi
 cd omnilingual-asr
 
 # Install base dependencies
