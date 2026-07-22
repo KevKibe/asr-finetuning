@@ -55,7 +55,7 @@ else:
         min_audio = 32_000
         max_audio = 320_000
         max_num_elements = 320_000
-        grad_accum = 4
+        grad_accum = 2
         use_fsdp = True
     else:  # CTC model
         num_steps = 10_000
