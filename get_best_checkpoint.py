@@ -138,24 +138,30 @@ def main():
     print(f"Export dir: {EXPORT_DIR}\n")
 
     run_dir = find_run(ROOT_DIR)
-    best, _ = find_best_checkpoint(run_dir)
-    best_ckpt = best["path"]
+    best, candidates = find_best_checkpoint(run_dir)
 
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Copy model weights in original format
-    weight_path = best_ckpt / "model/pp_00/tp_00/sdp_00.pt"
-    if weight_path.exists():
-        print(f"Copying: {weight_path}")
-        shutil.copy(weight_path, EXPORT_DIR / "model.pt")
-        print("Saved model.pt")
-    else:
-        print(f"Warning: Model weights not found at {weight_path}")
+    # Copy all checkpoints
+    checkpoints_dir = EXPORT_DIR / "checkpoints"
+    checkpoints_dir.mkdir(exist_ok=True)
+    
+    print(f"\nCopying {len(candidates)} checkpoints...")
+    for candidate in candidates:
+        step = candidate["step"]
+        src_ckpt = candidate["path"]
+        dst_ckpt = checkpoints_dir / f"step_{step}"
+        
+        if not dst_ckpt.exists():
+            print(f"  Copying step_{step}...")
+            copytree_if_exists(src_ckpt / "model", dst_ckpt / "model")
+    
+    print(f"✓ All {len(candidates)} checkpoints saved")
 
-    # Copy config and checkpoint structure
+    # Copy config files once (shared across all checkpoints)
+    print("\nCopying config files...")
     copy_if_exists(run_dir / "config.yaml", EXPORT_DIR / "config.yaml")
     copy_if_exists(run_dir / "checkpoints/model.yaml", EXPORT_DIR / "model.yaml")
-    copytree_if_exists(best_ckpt / "model", EXPORT_DIR / "model")
 
     # Copy useful artifacts
     copytree_if_exists(run_dir / "metrics", EXPORT_DIR / "metrics")
@@ -165,10 +171,12 @@ def main():
     for name in ("tb", "tensorboard"):
         shutil.rmtree(EXPORT_DIR / name, ignore_errors=True)
 
-    # Generate model card README
+    # Generate model card README with best checkpoint info
     generate_readme(run_dir, best, EXPORT_DIR)
 
-    print(f"Export complete: {EXPORT_DIR}")
+    print(f"\nExport complete: {EXPORT_DIR}")
+    print(f"Best checkpoint: step_{best['step']}")
+    print(f"All checkpoints location: {checkpoints_dir}")
 
 
 if __name__ == "__main__":

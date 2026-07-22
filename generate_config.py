@@ -135,7 +135,7 @@ trainer:
     granularity: "stack"
     version: "v1"
     fp32_reduce: false
-""" if not test_mode and "llm" in model_name.lower() else "") + """
+""" if not test_mode and "llm" in model_name.lower() else "") + f"""
 regime:
   num_steps: {num_steps}
 
