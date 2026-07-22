@@ -2,12 +2,14 @@ import sys
 from pathlib import Path
 
 if len(sys.argv) < 2:
-    print("Usage: python generate_config.py <dataset_root> [model_name]")
+    print("Usage: python generate_config.py <dataset_root> [model_name] [--test]")
     print("Example: python generate_config.py ./fleurs-shona-omni omniASR_CTC_300M")
+    print("Example (smoke test): python generate_config.py ./fleurs-shona-omni omniASR_CTC_300M --test")
     sys.exit(1)
 
 root = Path(sys.argv[1])
-model_name = sys.argv[2] if len(sys.argv) > 2 else "omniASR_CTC_300M"
+model_name = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else "omniASR_CTC_300M"
+test_mode = "--test" in sys.argv
 
 # Use absolute path or relative to current directory
 if not root.is_absolute():
@@ -26,13 +28,34 @@ config_dir = omni_dir / "workflows/recipes/wav2vec2/asr/configs"
 config_dir.mkdir(parents=True, exist_ok=True)
 
 config_name = f"{root.name}-{model_name.lower()}-finetune.yaml"
+if test_mode:
+    config_name = config_name.replace(".yaml", "-test.yaml")
 config_path = config_dir / config_name
+
+# Smoke test settings (minimal)
+if test_mode:
+    num_steps = 20
+    validate_every = 5
+    checkpoint_every = 5
+    publish_every = 1
+    min_audio = 16_000
+    max_audio = 128_000
+    print("*** SMOKE TEST MODE ***")
+else:
+    num_steps = 20_000
+    validate_every = 1_000
+    checkpoint_every = 1_000
+    publish_every = 200
+    min_audio = 32_000
+    max_audio = 960_000
 
 print(f"""
 Root: {root}
 Model: {model_name}
 Config: {config_name}
 Config dir: {config_dir}
+Mode: {'TEST (minimal)' if test_mode else 'PRODUCTION'}
+Steps: {num_steps}
 """)
 
 config = f"""
@@ -61,9 +84,9 @@ dataset:
       cache: True
 
   asr_task_config:
-    min_audio_len: 16000
-    max_audio_len: 32000
-    max_num_elements: 32000
+    min_audio_len: {min_audio}
+    max_audio_len: {max_audio}
+    max_num_elements: {max_audio}
 
     batch_shuffle_window: 1
     example_shuffle_window: 1
@@ -80,20 +103,20 @@ trainer:
   freeze_encoder_for_n_steps: 0
 
   mixed_precision:
-    dtype: "torch.float16"
+    dtype: "torch.bfloat16"
 
   grad_accumulation:
-    num_batches: 1
+    num_batches: 4
 
 regime:
-  num_steps: 10
+  num_steps: {num_steps}
 
-  validate_after_n_steps: 5
-  validate_every_n_steps: 5
+  validate_after_n_steps: 0
+  validate_every_n_steps: {validate_every}
 
-  checkpoint_every_n_steps: 5
+  checkpoint_every_n_steps: {checkpoint_every}
 
-  publish_metrics_every_n_steps: 5
+  publish_metrics_every_n_steps: {publish_every}
 """
 
 config_path.write_text(config)
