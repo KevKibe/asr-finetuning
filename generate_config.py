@@ -58,7 +58,7 @@ else:
         grad_accum = 4               # ← increased from 1
         use_fsdp = True
     else:  # CTC model
-        num_steps = 10_000
+        num_steps = 7_500
         validate_every = 2_500
         checkpoint_every = 2_500
         publish_every = 2_500
