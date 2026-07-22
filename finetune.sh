@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Omnilingual ASR Finetuning Orchestrator
+# Downloads dataset, generates config, runs training, and uploads model
+
+usage() {
+    cat << 'EOF'
+Usage: ./finetune.sh <dataset_repo> <model_name> [output_repo] [hf_token]
+
+Arguments:
+  dataset_repo       HuggingFace dataset repo ID (e.g., KevinKibe/fleurs-shona-omni)
+  model_name        Model to finetune (e.g., omniASR_CTC_300M, omniASR_LLM_1B)
+  output_repo       HuggingFace repo to upload model (default: <dataset_repo>-finetuned)
+  hf_token          HuggingFace API token (default: $HF_TOKEN env var)
+
+Example:
+  ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M KevinKibe/omniASR-fleurs-finetuned
+
+Environment:
+  HF_TOKEN          Your HuggingFace API token (for upload)
+EOF
+    exit 1
+}
+
+if [[ $# -lt 2 ]]; then
+    usage
+fi
+
+DATASET_REPO="$1"
+MODEL_NAME="$2"
+OUTPUT_REPO="${3:-${DATASET_REPO}-finetuned}"
+HF_TOKEN="${4:-${HF_TOKEN:-}}"
+
+# Color output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+log_step() {
+    echo -e "${BLUE}==>${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DATASET_NAME=$(basename "$DATASET_REPO")
+DATASET_DIR="$SCRIPT_DIR/$DATASET_NAME"
+OUTPUT_DIR="$SCRIPT_DIR/finetuning_output"
+EXPORT_DIR="$SCRIPT_DIR/hf_export"
+
+log_step "OmniASR Finetuning Workflow"
+echo "Dataset repo: $DATASET_REPO"
+echo "Model: $MODEL_NAME"
+echo "Output repo: $OUTPUT_REPO"
+echo "Dataset dir: $DATASET_DIR"
+echo ""
+
+# Step 1: Download dataset
+log_step "Downloading dataset from HuggingFace..."
+cd "$SCRIPT_DIR"
+python3 dataset_download.py "$DATASET_REPO" "$DATASET_DIR"
+log_success "Dataset downloaded"
+echo ""
+
+# Step 2: Generate language distribution
+log_step "Generating language distribution..."
+python3 lang_distribution.py "$DATASET_DIR"
+log_success "Language distribution generated"
+echo ""
+
+# Step 3: Generate config
+log_step "Generating finetuning config..."
+python3 generate_config.py "$DATASET_DIR" "$MODEL_NAME"
+log_success "Config generated"
+echo ""
+
+# Step 4: Run finetuning
+CONFIG_NAME="$DATASET_NAME-$(echo "$MODEL_NAME" | tr '[:upper:]' '[:lower:]')-finetune.yaml"
+log_step "Starting finetuning..."
+echo "Config: $CONFIG_NAME"
+echo "Output: $OUTPUT_DIR"
+echo ""
+
+cd "$SCRIPT_DIR"
+mkdir -p "$OUTPUT_DIR"
+
+export PYTHONPATH="$SCRIPT_DIR/omnilingual-asr/src:$SCRIPT_DIR/omnilingual-asr:$PYTHONPATH"
+
+PYTHONUNBUFFERABLE=1 python3 -u -m workflows.recipes.wav2vec2.asr \
+    "$OUTPUT_DIR" \
+    --config-file "$SCRIPT_DIR/omnilingual-asr/workflows/recipes/wav2vec2/asr/configs/$CONFIG_NAME" \
+    --config dataset.config_overrides.data="$DATASET_DIR" \
+    2>&1 | tee "$SCRIPT_DIR/training.log" | grep --line-buffered -E "INFO|WARNING|ERROR|step|loss|lr|epoch|checkpoint"
+
+log_success "Finetuning completed"
+echo ""
+
+# Step 5: Extract best checkpoint
+log_step "Extracting best checkpoint..."
+python3 get_best_checkpoint.py "$OUTPUT_DIR" "$EXPORT_DIR"
+log_success "Best checkpoint extracted"
+echo ""
+
+# Step 6: Upload model (if token provided)
+if [[ -n "$HF_TOKEN" ]]; then
+    log_step "Uploading model to HuggingFace..."
+    python3 upload_model.py "$OUTPUT_REPO" "$EXPORT_DIR" "$HF_TOKEN"
+    log_success "Model uploaded"
+else
+    log_error "HF_TOKEN not provided, skipping upload"
+    echo "To upload, run:"
+    echo "  export HF_TOKEN=your_token_here"
+    echo "  python3 upload_model.py \"$OUTPUT_REPO\" \"$EXPORT_DIR\""
+fi
+
+echo ""
+log_success "Workflow complete!"
+echo "Results saved to: $EXPORT_DIR"
