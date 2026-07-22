@@ -39,7 +39,9 @@ if test_mode:
     checkpoint_every = 5
     publish_every = 1
     min_audio = 16_000
-    max_audio = 128_000
+    max_audio = 64_000      
+    max_num_elements = 32_000 
+    grad_accum = 1          
     print("*** SMOKE TEST MODE ***")
 else:
     num_steps = 20_000
@@ -48,14 +50,18 @@ else:
     publish_every = 200
     min_audio = 32_000
     max_audio = 960_000
+    max_num_elements = 960_000
+    grad_accum = 4
 
 print(f"""
 Root: {root}
 Model: {model_name}
 Config: {config_name}
 Config dir: {config_dir}
-Mode: {'TEST (minimal)' if test_mode else 'PRODUCTION'}
+Mode: {'TEST' if test_mode else 'PRODUCTION'}
 Steps: {num_steps}
+Max audio: {max_audio}
+Grad accum: {grad_accum}
 """)
 
 config = f"""
@@ -86,7 +92,7 @@ dataset:
   asr_task_config:
     min_audio_len: {min_audio}
     max_audio_len: {max_audio}
-    max_num_elements: {max_audio}
+    max_num_elements: {max_num_elements}
 
     batch_shuffle_window: 1
     example_shuffle_window: 1
@@ -106,7 +112,7 @@ trainer:
     dtype: "torch.bfloat16"
 
   grad_accumulation:
-    num_batches: 4
+    num_batches: {grad_accum}
 
 regime:
   num_steps: {num_steps}
