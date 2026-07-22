@@ -29,15 +29,15 @@ cd "$SCRIPT_DIR/omnilingual-asr"
 
 # Install base dependencies
 echo -e "${YELLOW}Installing base package dependencies...${NC}"
-uv pip install -e .
+uv pip install --system -e .
 
 # Uninstall conflicting versions
 echo -e "${YELLOW}Removing conflicting torchaudio and torchvision versions...${NC}"
-uv pip uninstall -y torchaudio torchvision || true
+uv pip uninstall --system -y torchaudio torchvision || true
 
 # Install CUDA-optimized PyTorch packages
 echo -e "${YELLOW}Installing PyTorch packages with CUDA support...${NC}"
-uv pip install --no-cache-dir \
+uv pip install --system --no-cache-dir \
     torchaudio==2.8.0 \
     torchvision==0.23.0 \
     --index-url https://download.pytorch.org/whl/cu128
