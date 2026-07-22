@@ -44,14 +44,29 @@ if test_mode:
     grad_accum = 1          
     print("*** SMOKE TEST MODE ***")
 else:
-    num_steps = 10_000
-    validate_every = 2500
-    checkpoint_every = 2500
-    publish_every = 2500
-    min_audio = 32_000
-    max_audio = 960_000
-    max_num_elements = 960_000
-    grad_accum = 4
+    # Model-specific settings
+    is_llm = "llm" in model_name.lower()
+    
+    if is_llm:
+        num_steps = 10_000
+        validate_every = 2_500
+        checkpoint_every = 2_500
+        publish_every = 2_500
+        min_audio = 32_000
+        max_audio = 320_000
+        max_num_elements = 320_000
+        grad_accum = 4
+        use_fsdp = True
+    else:  # CTC model
+        num_steps = 10_000
+        validate_every = 2_500
+        checkpoint_every = 2_500
+        publish_every = 2_500
+        min_audio = 32_000
+        max_audio = 960_000
+        max_num_elements = 960_000
+        grad_accum = 4
+        use_fsdp = False
 
 print(f"""
 Root: {root}
@@ -59,6 +74,7 @@ Model: {model_name}
 Config: {config_name}
 Config dir: {config_dir}
 Mode: {'TEST' if test_mode else 'PRODUCTION'}
+Model type: {'LLM (FSDP)' if not test_mode and "llm" in model_name.lower() else 'CTC'}
 Steps: {num_steps}
 Max audio: {max_audio}
 Grad accum: {grad_accum}
@@ -113,7 +129,13 @@ trainer:
 
   grad_accumulation:
     num_batches: {grad_accum}
-
+""" + ("""
+  data_parallelism: "fsdp"
+  fsdp:
+    granularity: "stack"
+    version: "v1"
+    fp32_reduce: false
+""" if not test_mode and "llm" in model_name.lower() else "") + """
 regime:
   num_steps: {num_steps}
 
