@@ -7,16 +7,20 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${YELLOW}Setting up Omnilingual ASR environment...${NC}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Clone repository
+echo -e "${YELLOW}Setting up Omnilingual ASR environment...${NC}"
+echo "Script directory: $SCRIPT_DIR"
+
+# Clone repository into script directory
 echo -e "${YELLOW}Cloning omnilingual-asr repository...${NC}"
-if [ -d "omnilingual-asr" ]; then
+if [ -d "$SCRIPT_DIR/omnilingual-asr" ]; then
     echo "omnilingual-asr already exists, skipping clone"
 else
+    cd "$SCRIPT_DIR"
     git clone https://github.com/facebookresearch/omnilingual-asr
 fi
-cd omnilingual-asr
+cd "$SCRIPT_DIR/omnilingual-asr"
 
 # Install base dependencies
 echo -e "${YELLOW}Installing base package dependencies...${NC}"

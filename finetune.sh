@@ -95,17 +95,19 @@ cd "$SCRIPT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
 # Ensure omnilingual-asr exists
-if [ ! -d "$SCRIPT_DIR/omnilingual-asr" ]; then
-    log_error "omnilingual-asr directory not found. Run setup.sh first."
+ASR_DIR="$SCRIPT_DIR/omnilingual-asr"
+if [ ! -d "$ASR_DIR" ]; then
+    log_error "omnilingual-asr directory not found at $ASR_DIR"
+    log_error "Run setup.sh first."
     exit 1
 fi
 
-export PYTHONPATH="$SCRIPT_DIR/omnilingual-asr/src:$SCRIPT_DIR/omnilingual-asr:$PYTHONPATH"
+export PYTHONPATH="$ASR_DIR/src:$ASR_DIR:$PYTHONPATH"
 export PYTHONUNBUFFERED=1
 
 python3 -u -m workflows.recipes.wav2vec2.asr \
     "$OUTPUT_DIR" \
-    --config-file "$SCRIPT_DIR/omnilingual-asr/workflows/recipes/wav2vec2/asr/configs/$CONFIG_NAME" \
+    --config-file "$ASR_DIR/workflows/recipes/wav2vec2/asr/configs/$CONFIG_NAME" \
     --config dataset.config_overrides.data="$DATASET_DIR" \
     2>&1 | tee "$SCRIPT_DIR/training.log"
 
