@@ -161,7 +161,7 @@ dataset:
     normalize_audio: true
 
 tokenizer:
-  name: "omniASR_tokenizer_v2"
+  name: "omniASR_tokenizer_v1"
 
 optimizer:
   config:
