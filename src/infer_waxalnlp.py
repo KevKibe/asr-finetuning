@@ -9,6 +9,7 @@ Omnilingual model card, and optionally computes WER/CER against the dataset's
 from __future__ import annotations
 
 import argparse
+import io
 import importlib
 import itertools
 import json
@@ -143,6 +144,42 @@ def _print_env_hints() -> None:
     print("  pip install 'datasets[audio]' omnilingual-asr")
 
 
+def _decode_audio_to_waveform(
+    audio: dict[str, object],
+    sf_module: object,
+) -> dict[str, object] | None:
+    """Decode datasets audio payload to waveform dict accepted by ASRInferencePipeline.
+
+    Returns:
+        {"waveform": np.ndarray, "sample_rate": int} or None on decode failure.
+    """
+    if not isinstance(audio, dict):
+        return None
+
+    bytes_value = audio.get("bytes")
+    path_value = audio.get("path")
+
+    try:
+        if bytes_value:
+            waveform, sample_rate = sf_module.read(io.BytesIO(bytes_value), dtype="float32")
+        elif path_value and isinstance(path_value, str):
+            waveform, sample_rate = sf_module.read(path_value, dtype="float32")
+        else:
+            # Fallback if decode=True is still active.
+            waveform = audio.get("array")
+            sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
+            if waveform is None or sample_rate is None:
+                return None
+
+        # Convert multichannel audio to mono.
+        if getattr(waveform, "ndim", 1) > 1:
+            waveform = waveform.mean(axis=1)
+
+        return {"waveform": waveform, "sample_rate": int(sample_rate)}
+    except Exception:
+        return None
+
+
 def _run_inference_batch(
     *,
     pipeline: object,
@@ -187,9 +224,11 @@ def main() -> int:
         datasets_module = importlib.import_module("datasets")
         load_dataset = datasets_module.load_dataset
         Audio = datasets_module.Audio
+        sf_module = importlib.import_module("soundfile")
     except ImportError:
         _print_env_hints()
-        print("Missing package: datasets", file=sys.stderr)
+        print("Missing package: datasets and/or soundfile", file=sys.stderr)
+        print("Install: pip install 'datasets[audio]' soundfile", file=sys.stderr)
         return 1
 
     try:
@@ -249,6 +288,7 @@ def main() -> int:
 
     refs: list[str] = []
     hyps: list[str] = []
+    skipped_decode = 0
 
     with output_path.open("w", encoding="utf-8") as out_f:
         if args.streaming:
@@ -263,23 +303,11 @@ def main() -> int:
 
             for idx, sample in enumerate(stream):
                 audio = sample.get("audio")
-                if not isinstance(audio, dict):
+                decoded = _decode_audio_to_waveform(audio, sf_module)
+                if decoded is None:
+                    skipped_decode += 1
                     continue
-
-                audio_bytes = audio.get("bytes")
-                audio_path = audio.get("path")
-
-                if audio_bytes is not None:
-                    audio_inputs.append(audio_bytes)
-                elif audio_path:
-                    audio_inputs.append(audio_path)
-                else:
-                    # Fallback if decode=True slips through in a future datasets change.
-                    waveform = audio.get("array")
-                    sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
-                    if waveform is None or sample_rate is None:
-                        continue
-                    audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+                audio_inputs.append(decoded)
 
                 batch_refs.append(str(sample.get("transcription", "")))
                 batch_ids.append(str(sample.get("id", idx)) if has_id else str(idx))
@@ -326,23 +354,11 @@ def main() -> int:
 
                 for idx, sample in enumerate(batch):
                     audio = sample.get("audio")
-                    if not isinstance(audio, dict):
+                    decoded = _decode_audio_to_waveform(audio, sf_module)
+                    if decoded is None:
+                        skipped_decode += 1
                         continue
-
-                    audio_bytes = audio.get("bytes")
-                    audio_path = audio.get("path")
-
-                    if audio_bytes is not None:
-                        audio_inputs.append(audio_bytes)
-                    elif audio_path:
-                        audio_inputs.append(audio_path)
-                    else:
-                        # Fallback if decode=True slips through in a future datasets change.
-                        waveform = audio.get("array")
-                        sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
-                        if waveform is None or sample_rate is None:
-                            continue
-                        audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+                    audio_inputs.append(decoded)
 
                     batch_refs.append(str(sample.get("transcription", "")))
                     batch_ids.append(str(sample.get("id", start + idx)) if has_id else str(start + idx))
@@ -362,6 +378,8 @@ def main() -> int:
                 print(f"Processed {len(refs)}/{n_samples} samples (+{processed})")
 
     print(f"Saved predictions to: {output_path}")
+    if skipped_decode:
+        print(f"Skipped {skipped_decode} samples due to audio decode failures")
 
     if not args.no_metrics:
         wer = _compute_wer(refs, hyps)
