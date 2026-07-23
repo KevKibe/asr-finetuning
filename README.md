@@ -170,7 +170,7 @@ docker run -d \
 
 ```bash
 docker run -d \
-  --name lin-300m-run \
+  --name sna-300m-run \
   --gpus "device=0" \
   asr-finetuning \
   KevinKibe/fleurs-shona-omni \
