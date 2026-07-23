@@ -80,9 +80,9 @@ if test_mode:
     validate_every = 10
     checkpoint_every = 10
     publish_every = 10
-    min_audio = 16_000
-    max_audio = 48_000      
-    max_num_elements = 48_000 
+    min_audio = 32_000
+    max_audio = 960_000      
+    max_num_elements = 960_000 
     grad_accum = 1          
     print("*** SMOKE TEST MODE ***")
 else:
