@@ -66,8 +66,7 @@ bash src/finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M \
   --combine-waxal-sna --test
 
 # Full combined Shona run. Validation uses only Waxal's validation split.
-bash src/finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M \
-  --combine-waxal-sna
+bash src/finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M --combine-waxal-sna
 
 # Full combined Lingala run: FLEURS train/dev/test + Waxal train/test.
 # Validation uses only Waxal's validation split.
