@@ -1,0 +1,41 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info/
+.Python
+build/
+dist/
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Output directories
+hf_export/
+finetuning_output/
+*.log
+tensorboard/
+runs/
+
+# Large datasets (will be downloaded in container)
+fleurs-*/
+*.parquet
+*.tsv
+
+# OS
+.DS_Store
+Thumbs.db

@@ -56,7 +56,6 @@ else:
         max_audio = 160_000          # ← reduced from 320_000
         max_num_elements = 160_000   # ← reduced from 320_000
         grad_accum = 4               # ← increased from 1
-        use_fsdp = True
     else:  # CTC model
         num_steps = 7_500
         validate_every = 2_500
@@ -66,7 +65,6 @@ else:
         max_audio = 960_000
         max_num_elements = 960_000
         grad_accum = 4
-        use_fsdp = False
 
 print(f"""
 Root: {root}

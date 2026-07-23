@@ -62,7 +62,8 @@ log_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SRC_DIR="$SCRIPT_DIR/src"
 DATASET_NAME=$(basename "$DATASET_REPO")
 DATASET_DIR="$SCRIPT_DIR/$DATASET_NAME"
 OUTPUT_DIR="$SCRIPT_DIR/finetuning_output"
@@ -78,19 +79,19 @@ echo ""
 # Step 1: Download dataset
 log_step "Downloading dataset from HuggingFace..."
 cd "$SCRIPT_DIR"
-python3 dataset_download.py "$DATASET_REPO" "$DATASET_DIR"
+python3 "$SRC_DIR/dataset_download.py" "$DATASET_REPO" "$DATASET_DIR"
 log_success "Dataset downloaded"
 echo ""
 
 # Step 2: Generate language distribution
 log_step "Generating language distribution..."
-python3 lang_distribution.py "$DATASET_DIR"
+python3 "$SRC_DIR/lang_distribution.py" "$DATASET_DIR"
 log_success "Language distribution generated"
 echo ""
 
 # Step 3: Generate config
 log_step "Generating finetuning config..."
-python3 generate_config.py "$DATASET_DIR" "$MODEL_NAME" ${TEST_FLAG}
+python3 "$SRC_DIR/generate_config.py" "$DATASET_DIR" "$MODEL_NAME" ${TEST_FLAG}
 log_success "Config generated"
 echo ""
 
@@ -127,20 +128,20 @@ log_success "Finetuning completed"
 
 # Step 5: Extract best checkpoint
 log_step "Extracting best checkpoint..."
-python3 get_best_checkpoint.py "$OUTPUT_DIR" "$EXPORT_DIR"
+python3 "$SRC_DIR/get_best_checkpoint.py" "$OUTPUT_DIR" "$EXPORT_DIR"
 log_success "Best checkpoint extracted"
 echo ""
 
 # Step 6: Upload model (if token provided)
 if [[ -n "$HF_TOKEN" ]]; then
     log_step "Uploading model to HuggingFace..."
-    python3 upload_model.py "$OUTPUT_REPO" "$EXPORT_DIR" "$HF_TOKEN"
+    python3 "$SRC_DIR/upload_model.py" "$OUTPUT_REPO" "$EXPORT_DIR" "$HF_TOKEN"
     log_success "Model uploaded"
 else
-    log_error "HF_TOKEN not provided, skipping upload"
+    echo "HF_TOKEN not provided, skipping upload"
     echo "To upload, run:"
     echo "  export HF_TOKEN=your_token_here"
-    echo "  python3 upload_model.py \"$OUTPUT_REPO\" \"$EXPORT_DIR\""
+    echo "  python3 $SRC_DIR/upload_model.py \"$OUTPUT_REPO\" \"$EXPORT_DIR\""
 fi
 
 echo ""

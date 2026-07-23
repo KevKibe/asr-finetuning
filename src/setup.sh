@@ -12,7 +12,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo -e "${YELLOW}Setting up Omnilingual ASR environment...${NC}"
 echo "Script directory: $SCRIPT_DIR"
@@ -45,6 +45,10 @@ uv pip install --system --no-cache-dir \
     torchaudio==2.8.0 \
     torchvision==0.23.0 \
     --index-url https://download.pytorch.org/whl/cu128
+
+# Install tensorboard
+echo -e "${YELLOW}Installing tensorboard...${NC}"
+uv pip install --system tensorboard
 
 # Verify installation
 echo -e "${YELLOW}Verifying installation...${NC}"
