@@ -137,7 +137,7 @@ Built on [Omnilingual ASR](https://github.com/facebookresearch/omnilingual-asr) 
 
 
 
-### Setup
+# Setup
 
 1. Clone `git clone https://github.com/KevKibe/asr-finetuning.git`
 
