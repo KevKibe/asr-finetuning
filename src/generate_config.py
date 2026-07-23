@@ -97,15 +97,15 @@ else:
         checkpoint_every = 2_500
         publish_every = 2_500
         min_audio = 32_000
-        max_audio = 160_000          # ← reduced from 320_000
-        max_num_elements = 160_000   # ← reduced from 320_000
-        grad_accum = 4               # ← increased from 1
+        max_audio = 160_000          
+        max_num_elements = 160_000   
+        grad_accum = 4               
     else:  # CTC model
-        num_steps = 200
-        validate_after = 50
-        validate_every = 50
-        checkpoint_every = 50
-        publish_every = 1
+        num_steps = 5_000
+        validate_after = 1_000
+        validate_every = 1_000
+        checkpoint_every = 1_000
+        publish_every = 500
         min_audio = 32_000
         max_audio = 960_000
         max_num_elements = 960_000

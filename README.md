@@ -62,5 +62,36 @@ docker run --gpus 0,1,2 ...     # specific GPUs
 ```
 
 
+## Inference On WaxalNLP
+
+Run your finetuned model card against WaxalNLP test samples for any ASR language.
+
+```bash
+# Example: Luganda test inference with a custom registered card.
+# --omni-lang is recommended for LLM models and optional for CTC.
+python src/infer_waxalnlp.py \
+  --model-card omniASR_CTC_300M_lin_best_test \
+  --language lug \
+  --omni-lang lug_Latn \
+  --split test \
+  --batch-size 4
+
+# Quick smoke inference on first 100 samples.
+python src/infer_waxalnlp.py \
+  --model-card omniASR_CTC_300M_lin_best_test \
+  --language lin \
+  --max-samples 100
+```
+
+Outputs are written under `outputs/inference/`:
+- `*.jsonl`: per-sample predictions and references.
+- `*.metrics.json`: summary metrics (WER/CER).
+
+Notes:
+- Waxal ASR config is inferred as `<language>_asr` (for example: `lug_asr`, `lin_asr`, `sna_asr`).
+- Use `--config` to override config name manually.
+- Omnilingual currently accepts audio samples shorter than 40 seconds for this inference path.
+
+
 
 Built on [Omnilingual ASR](https://github.com/facebookresearch/omnilingual-asr) and [fairseq2](https://github.com/facebookresearch/fairseq2)
