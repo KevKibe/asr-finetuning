@@ -76,11 +76,11 @@ config_path = config_dir / config_name
 
 # Smoke test settings (minimal)
 if test_mode:
-    num_steps = 50
-    validate_after = num_steps + 1
-    validate_every = num_steps + 1
+    num_steps = 200
+    validate_after = 50
+    validate_every = 50
     checkpoint_every = 10
-    publish_every = 1
+    publish_every = 10
     min_audio = 32_000
     max_audio = 960_000      
     max_num_elements = 960_000 
