@@ -31,7 +31,7 @@ read -r -d '' MODEL_1 << 'EOF' || true
 name: omniASR_CTC_300M_lin_10k_test
 model_family: wav2vec2_asr
 model_arch: 300m
-checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-10k/tree/main/model/pp_00/tp_00/sdp_00.pt
+checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-10k/resolve/main/model/pp_00/tp_00/sdp_00.pt
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
