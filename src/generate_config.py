@@ -80,7 +80,7 @@ if test_mode:
     validate_after = num_steps + 1
     validate_every = num_steps + 1
     checkpoint_every = 10
-    publish_every = 10
+    publish_every = 1
     min_audio = 32_000
     max_audio = 960_000      
     max_num_elements = 960_000 
@@ -89,7 +89,7 @@ if test_mode:
 else:
     # Model-specific settings
     is_llm = "llm" in model_name.lower()
-    
+
     if is_llm:
         num_steps = 7_500
         validate_after = 0
