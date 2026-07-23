@@ -101,11 +101,11 @@ else:
         max_num_elements = 160_000   # ← reduced from 320_000
         grad_accum = 4               # ← increased from 1
     else:  # CTC model
-        num_steps = 7_500
-        validate_after = 0
-        validate_every = 2_500
-        checkpoint_every = 2_500
-        publish_every = 2_500
+        num_steps = 200
+        validate_after = 50
+        validate_every = 50
+        checkpoint_every = 50
+        publish_every = 10
         min_audio = 32_000
         max_audio = 960_000
         max_num_elements = 960_000
@@ -161,7 +161,7 @@ dataset:
     normalize_audio: true
 
 tokenizer:
-  name: "omniASR_tokenizer_v1"
+  name: "omniASR_tokenizer_v2"
 
 optimizer:
   config:
