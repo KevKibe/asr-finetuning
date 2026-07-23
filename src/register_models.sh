@@ -44,27 +44,57 @@ checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-finetuned/resolve/m
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
-# Check if models already exist
 echo ""
-echo "==> Checking if models already registered..."
+echo "==> Upserting custom model entries..."
 
-if grep -q "omniASR_CTC_300M_lin_10k_test" "$MODELS_YAML"; then
-    echo "✓ omniASR_CTC_300M_lin_10k_test already exists"
-else
-    echo "Adding omniASR_CTC_300M_lin_10k_test..."
-    # Ensure we append on a fresh line to avoid corrupting YAML when file lacks trailing newline.
-    printf "\n%s\n" "$MODEL_1" >> "$MODELS_YAML"
-    echo "✓ Added omniASR_CTC_300M_lin_10k_test"
-fi
+# Remove any old/stale definitions (both list-item style and document style), then append canonical blocks.
+python3 - "$MODELS_YAML" << 'PY'
+from pathlib import Path
+import re
+import sys
 
-if grep -q "omniASR_CTC_300M_lin_best_test" "$MODELS_YAML"; then
-    echo "✓ omniASR_CTC_300M_lin_best_test already exists"
-else
-    echo "Adding omniASR_CTC_300M_lin_best_test..."
-    # Ensure we append on a fresh line to avoid corrupting YAML when file lacks trailing newline.
-    printf "\n%s\n" "$MODEL_2" >> "$MODELS_YAML"
-    echo "✓ Added omniASR_CTC_300M_lin_best_test"
-fi
+path = Path(sys.argv[1])
+text = path.read_text(encoding="utf-8")
+
+names = [
+    "omniASR_CTC_300M_lin_10k_test",
+    "omniASR_CTC_300M_lin_best_test",
+]
+
+for name in names:
+    # Remove malformed list-style entries:
+    # - name: ...
+    #   field: ...
+    text = re.sub(
+        rf"(?ms)^\s*-\s*name:\s*{re.escape(name)}\s*\n(?:^[ \t].*\n?)*",
+        "",
+        text,
+    )
+
+    # Remove proper/legacy multi-doc entries:
+    # ---\nname: ...\n...
+    text = re.sub(
+        rf"(?ms)\n?^---\s*\nname:\s*{re.escape(name)}\s*\n(?:^(?!\s*---\s*$).*(?:\n|$))*",
+        "",
+        text,
+    )
+
+    # Remove possible no-separator doc entries:
+    # name: ...\n...
+    text = re.sub(
+        rf"(?ms)^name:\s*{re.escape(name)}\s*\n(?:^(?!\s*---\s*$).*(?:\n|$))*",
+        "",
+        text,
+    )
+
+path.write_text(text.rstrip() + "\n", encoding="utf-8")
+PY
+
+printf "\n%s\n" "$MODEL_1" >> "$MODELS_YAML"
+printf "\n%s\n" "$MODEL_2" >> "$MODELS_YAML"
+
+echo "✓ Upserted omniASR_CTC_300M_lin_10k_test"
+echo "✓ Upserted omniASR_CTC_300M_lin_best_test"
 
 echo ""
 echo "==> Registration complete!"
