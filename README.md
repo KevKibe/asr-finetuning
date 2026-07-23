@@ -33,13 +33,11 @@ bash src/finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M \
 
 # Full combined Lingala run: FLEURS train/dev/test + Waxal train/test.
 # Validation uses only Waxal's validation split.
-bash src/finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M \
-  --combine-waxal
+bash src/finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M --combine-waxal
 
 # Full combined Luganda run: FLEURS train/dev/test + Waxal train/test.
 # Validation uses only Waxal's validation split.
-bash src/finetune.sh KevinKibe/fleurs-luganda-omni omniASR_CTC_300M \
-  --combine-waxal
+bash src/finetune.sh KevinKibe/fleurs-luganda-omni omniASR_CTC_300M --combine-waxal
 
 # Full training (10k steps)
 bash src/finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M

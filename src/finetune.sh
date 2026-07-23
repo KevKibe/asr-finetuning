@@ -47,6 +47,10 @@ for arg in "${@:3}"; do
     case "$arg" in
         --test) TEST_FLAG="--test" ;;
         --combine-waxal|--combine-waxal-sna) COMBINE_WAXAL=true ;;
+        --*)
+            echo "Unknown option: $arg" >&2
+            usage
+            ;;
         hf_*|*:*) HF_TOKEN="$arg" ;;
         *) OUTPUT_REPO="$arg" ;;
     esac
