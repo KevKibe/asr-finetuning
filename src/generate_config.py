@@ -101,10 +101,10 @@ else:
         max_num_elements = 160_000   
         grad_accum = 4               
     else:  # CTC model
-        num_steps = 5_000
-        validate_after = 1_000
-        validate_every = 1_000
-        checkpoint_every = 1_000
+        num_steps = 10_000
+        validate_after = 2_500
+        validate_every = 2_500
+        checkpoint_every = 2_500
         publish_every = 500
         min_audio = 32_000
         max_audio = 960_000

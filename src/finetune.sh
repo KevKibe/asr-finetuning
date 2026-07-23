@@ -84,6 +84,12 @@ DATASET_DIR="$SCRIPT_DIR/$DATASET_NAME"
 OUTPUT_DIR="$SCRIPT_DIR/finetuning_output"
 EXPORT_DIR="$SCRIPT_DIR/hf_export"
 
+# Always start from a clean training output directory.
+if [[ -d "$OUTPUT_DIR" ]]; then
+    rm -rf "$OUTPUT_DIR"
+fi
+mkdir -p "$OUTPUT_DIR"
+
 log_step "OmniASR Finetuning Workflow"
 echo "Dataset repo: $DATASET_REPO"
 echo "Model: $MODEL_NAME"
@@ -157,7 +163,6 @@ echo "Output: $OUTPUT_DIR"
 echo ""
 
 cd "$SCRIPT_DIR"
-mkdir -p "$OUTPUT_DIR"
 
 # Ensure omnilingual-asr exists
 ASR_DIR="$SCRIPT_DIR/omnilingual-asr"
