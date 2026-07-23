@@ -15,6 +15,32 @@ test_mode = "--test" in sys.argv
 if not root.is_absolute():
     root = Path.cwd() / root
 
+
+def _count_train_groups(dataset_root: Path) -> tuple[int, int]:
+    """Count unique corpora/languages available in the train split."""
+    train_dirs = list(dataset_root.glob("corpus=*/split=train/language=*"))
+
+    corpora = set()
+    languages = set()
+
+    for train_dir in train_dirs:
+        # .../corpus=<name>/split=train/language=<name>
+        corpus_part = train_dir.parents[1].name
+        language_part = train_dir.name
+
+        if corpus_part.startswith("corpus="):
+            corpora.add(corpus_part.replace("corpus=", "", 1))
+
+        if language_part.startswith("language="):
+            languages.add(language_part.replace("language=", "", 1))
+
+    return len(corpora), len(languages)
+
+
+num_corpora, num_languages = _count_train_groups(root)
+beta_corpus = 0.5 if num_corpora > 1 else 0.0
+beta_language = 0.5 if num_languages > 1 else 0.0
+
 # Determine config output directory
 # Look for omnilingual-asr in current directory or parent
 script_dir = Path.cwd()
@@ -76,6 +102,8 @@ Model type: {'LLM (FSDP)' if not test_mode and "llm" in model_name.lower() else 
 Steps: {num_steps}
 Max audio: {max_audio}
 Grad accum: {grad_accum}
+Train corpora: {num_corpora} (beta_corpus={beta_corpus})
+Train languages: {num_languages} (beta_language={beta_language})
 """)
 
 config = f"""
@@ -97,8 +125,8 @@ dataset:
   mixture_parquet_storage_config:
     dataset_summary_path: "{root}/language_distribution_0.tsv"
 
-    beta_corpus: 0.5
-    beta_language: 0.5
+    beta_corpus: {beta_corpus}
+    beta_language: {beta_language}
 
     fragment_loading:
       cache: True

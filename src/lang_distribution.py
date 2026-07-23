@@ -8,22 +8,35 @@ if len(sys.argv) < 2:
 
 root = Path(sys.argv[1])
 
-# Detect language
-lang_dir = next(root.glob("corpus=*/split=*/language=*"))
-language = lang_dir.name.replace("language=", "")
-
 lines = ["dataset\tsplit\tlanguage\tcorpus\thours\tpath"]
+num_rows = 0
 
-for split in ["train", "dev", "test"]:
-    parquet_file = root / "corpus=fleurs" / f"split={split}" / f"language={language}" / "part-0.parquet"
+# Discover all Omnilingual-ASR partition directories:
+# corpus=<name>/split=<name>/language=<name>
+for lang_dir in sorted(root.glob("corpus=*/split=*/language=*")):
+    corpus = lang_dir.parents[1].name.replace("corpus=", "", 1)
+    split = lang_dir.parents[0].name.replace("split=", "", 1)
+    language = lang_dir.name.replace("language=", "", 1)
 
-    if parquet_file.exists():
+    parquet_files = sorted(lang_dir.glob("*.parquet"))
+    if not parquet_files:
+        continue
+
+    total_audio_size = 0
+    for parquet_file in parquet_files:
         table = pq.read_table(parquet_file, columns=["audio_size"])
-        hours = table["audio_size"].to_numpy().sum() / 16000 / 3600
+        total_audio_size += table["audio_size"].to_numpy().sum()
 
-        lines.append(
-            f"{root.name}\t{split}\t{language}\tfleurs\t{hours:.6f}\t{root}"
-        )
+    hours = total_audio_size / 16000 / 3600
+    lines.append(
+        f"{root.name}\t{split}\t{language}\t{corpus}\t{hours:.6f}\t{root}"
+    )
+    num_rows += 1
+
+if num_rows == 0:
+    print(f"No parquet partitions found under: {root}")
+    print("Expected paths like corpus=<name>/split=<name>/language=<name>/*.parquet")
+    sys.exit(2)
 
 output = root / "language_distribution_0.tsv"
 output.write_text("\n".join(lines))
