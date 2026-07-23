@@ -54,15 +54,23 @@ uv pip install --system tensorboard
 echo -e "${YELLOW}Installing Hugging Face datasets (audio extras)...${NC}"
 uv pip install --system "datasets[audio]"
 
+# Ensure direct audio decode dependency used by infer_waxalnlp.py is present.
+echo -e "${YELLOW}Installing soundfile for robust audio decoding...${NC}"
+uv pip install --system soundfile
+
 # Verify installation
 echo -e "${YELLOW}Verifying installation...${NC}"
 python3 << 'EOF'
 import torch
 import torchaudio
+import datasets
+import soundfile
 
 print(f"✓ torch: {torch.__version__}")
 print(f"✓ cuda: {torch.version.cuda}")
 print(f"✓ torchaudio: {torchaudio.__version__}")
+print(f"✓ datasets: {datasets.__version__}")
+print(f"✓ soundfile: {soundfile.__version__}")
 EOF
 
 echo -e "${GREEN}Setup completed successfully!${NC}"
