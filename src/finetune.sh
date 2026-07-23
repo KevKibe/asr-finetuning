@@ -20,9 +20,9 @@ Arguments:
 
 Example:
   ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M KevinKibe/omniASR-fleurs-finetuned
-    ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M --combine-waxal
-    ./finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M --combine-waxal
-    ./finetune.sh KevinKibe/fleurs-luganda-omni omniASR_CTC_300M --combine-waxal
+    ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M --combine-waxal-sna
+    ./finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M --combine-waxal-lin
+    ./finetune.sh KevinKibe/fleurs-luganda-omni omniASR_CTC_300M --combine-waxal-lug
 
 Environment:
   HF_TOKEN          Your HuggingFace API token (for upload)
@@ -46,7 +46,9 @@ HF_TOKEN="${HF_TOKEN:-}"
 for arg in "${@:3}"; do
     case "$arg" in
         --test) TEST_FLAG="--test" ;;
-        --combine-waxal|--combine-waxal-sna) COMBINE_WAXAL=true ;;
+        --combine-waxal|--combine-waxal-sna|--combine-waxal-lin|--combine-waxal-lug)
+            COMBINE_WAXAL=true
+            ;;
         --*)
             echo "Unknown option: $arg" >&2
             usage
@@ -119,6 +121,7 @@ if [[ "$COMBINE_WAXAL" == true ]]; then
     WAXAL_DIR="$SCRIPT_DIR/$(basename "$WAXAL_REPO")"
     COMBINED_DATASET_DIR="$SCRIPT_DIR/${DATASET_NAME}-$(basename "$WAXAL_REPO")-combined"
 
+    echo "Combined source pair: $DATASET_REPO + $WAXAL_REPO"
     log_step "Downloading Waxal $LANGUAGE_LABEL dataset from HuggingFace..."
     python3 "$SRC_DIR/dataset_download.py" "$WAXAL_REPO" "$WAXAL_DIR"
     log_success "Waxal dataset downloaded"

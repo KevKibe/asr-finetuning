@@ -79,7 +79,7 @@ if test_mode:
     num_steps = 200
     validate_after = 50
     validate_every = 50
-    checkpoint_every = 10
+    checkpoint_every = 50
     publish_every = 10
     min_audio = 32_000
     max_audio = 960_000      
