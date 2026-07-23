@@ -40,7 +40,7 @@ def _count_train_groups(dataset_root: Path) -> tuple[int, int]:
 def _detect_valid_split(dataset_root: Path) -> str:
     """Pick validation split expected by the recipe from dataset folders."""
     split_names = {
-        p.name.replace("split=", "", 1)
+    p.parents[0].name.replace("split=", "", 1)
         for p in dataset_root.glob("corpus=*/split=*/language=*")
         if p.parents[0].name.startswith("split=")
     }
