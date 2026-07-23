@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import itertools
 import json
 import math
 import re
@@ -70,6 +71,11 @@ def _parse_args() -> argparse.Namespace:
         "--output",
         default=None,
         help="Output JSONL path. Default: outputs/inference/<model>_<config>_<split>.jsonl",
+    )
+    parser.add_argument(
+        "--streaming",
+        action="store_true",
+        help="Use streaming dataset mode to avoid downloading full split files up front.",
     )
     return parser.parse_args()
 
@@ -137,6 +143,41 @@ def _print_env_hints() -> None:
     print("  pip install 'datasets[audio]' omnilingual-asr")
 
 
+def _run_inference_batch(
+    *,
+    pipeline: object,
+    args: argparse.Namespace,
+    audio_inputs: list[dict[str, object]],
+    batch_refs: list[str],
+    batch_ids: list[str],
+    batch_langs: list[str],
+    refs: list[str],
+    hyps: list[str],
+    out_f: object,
+) -> int:
+    if not audio_inputs:
+        return 0
+
+    lang_list = [args.omni_lang] * len(audio_inputs) if args.omni_lang else None
+    batch_hyps = pipeline.transcribe(audio_inputs, lang=lang_list, batch_size=args.batch_size)
+
+    for sid, sl, ref, hyp in zip(batch_ids, batch_langs, batch_refs, batch_hyps):
+        row = {
+            "id": sid,
+            "language": sl,
+            "config": args.config_name,
+            "split": args.split,
+            "reference": ref,
+            "prediction": hyp,
+            "model_card": args.model_card,
+        }
+        out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    refs.extend(batch_refs)
+    hyps.extend(batch_hyps)
+    return len(batch_refs)
+
+
 def main() -> int:
     args = _parse_args()
     project_root = Path(__file__).resolve().parents[1]
@@ -160,6 +201,7 @@ def main() -> int:
 
     lang = args.language.lower().strip()
     config_name = args.config or f"{lang}_asr"
+    args.config_name = config_name
 
     if args.output:
         output_path = Path(args.output)
@@ -170,13 +212,18 @@ def main() -> int:
 
     print(f"Loading dataset: {args.dataset} / {config_name} / split={args.split}")
     try:
-        dataset = load_dataset(args.dataset, config_name, split=args.split)
+        dataset = load_dataset(
+            args.dataset,
+            config_name,
+            split=args.split,
+            streaming=args.streaming,
+        )
     except Exception as exc:
         print(f"Failed to load dataset: {exc}", file=sys.stderr)
         return 1
 
-    n_samples = len(dataset)
-    if args.max_samples is not None:
+    n_samples = None if args.streaming else len(dataset)
+    if n_samples is not None and args.max_samples is not None:
         n_samples = min(n_samples, args.max_samples)
 
     if n_samples == 0:
@@ -198,16 +245,17 @@ def main() -> int:
     hyps: list[str] = []
 
     with output_path.open("w", encoding="utf-8") as out_f:
-        for start in range(0, n_samples, args.chunk_size):
-            end = min(start + args.chunk_size, n_samples)
-            batch = dataset.select(range(start, end))
+        if args.streaming:
+            stream = dataset
+            if args.max_samples is not None:
+                stream = itertools.islice(stream, args.max_samples)
 
-            audio_inputs = []
-            batch_refs = []
-            batch_ids = []
-            batch_langs = []
+            audio_inputs: list[dict[str, object]] = []
+            batch_refs: list[str] = []
+            batch_ids: list[str] = []
+            batch_langs: list[str] = []
 
-            for idx, sample in enumerate(batch):
+            for idx, sample in enumerate(stream):
                 audio = sample.get("audio")
                 if not isinstance(audio, dict):
                     continue
@@ -219,30 +267,75 @@ def main() -> int:
 
                 audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
                 batch_refs.append(str(sample.get("transcription", "")))
-                batch_ids.append(str(sample.get("id", start + idx)) if has_id else str(start + idx))
+                batch_ids.append(str(sample.get("id", idx)) if has_id else str(idx))
                 batch_langs.append(str(sample.get("language", lang)) if has_language else lang)
 
-            if not audio_inputs:
-                continue
+                if len(audio_inputs) >= args.chunk_size:
+                    processed = _run_inference_batch(
+                        pipeline=pipeline,
+                        args=args,
+                        audio_inputs=audio_inputs,
+                        batch_refs=batch_refs,
+                        batch_ids=batch_ids,
+                        batch_langs=batch_langs,
+                        refs=refs,
+                        hyps=hyps,
+                        out_f=out_f,
+                    )
+                    print(f"Processed {len(refs)} samples (+{processed})")
+                    audio_inputs, batch_refs, batch_ids, batch_langs = [], [], [], []
 
-            lang_list = [args.omni_lang] * len(audio_inputs) if args.omni_lang else None
-            batch_hyps = pipeline.transcribe(audio_inputs, lang=lang_list, batch_size=args.batch_size)
+            processed = _run_inference_batch(
+                pipeline=pipeline,
+                args=args,
+                audio_inputs=audio_inputs,
+                batch_refs=batch_refs,
+                batch_ids=batch_ids,
+                batch_langs=batch_langs,
+                refs=refs,
+                hyps=hyps,
+                out_f=out_f,
+            )
+            if processed:
+                print(f"Processed {len(refs)} samples (+{processed})")
+        else:
+            assert n_samples is not None
+            for start in range(0, n_samples, args.chunk_size):
+                end = min(start + args.chunk_size, n_samples)
+                batch = dataset.select(range(start, end))
 
-            for sid, sl, ref, hyp in zip(batch_ids, batch_langs, batch_refs, batch_hyps):
-                row = {
-                    "id": sid,
-                    "language": sl,
-                    "config": config_name,
-                    "split": args.split,
-                    "reference": ref,
-                    "prediction": hyp,
-                    "model_card": args.model_card,
-                }
-                out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                audio_inputs = []
+                batch_refs = []
+                batch_ids = []
+                batch_langs = []
 
-            refs.extend(batch_refs)
-            hyps.extend(batch_hyps)
-            print(f"Processed {len(refs)}/{n_samples} samples")
+                for idx, sample in enumerate(batch):
+                    audio = sample.get("audio")
+                    if not isinstance(audio, dict):
+                        continue
+
+                    waveform = audio.get("array")
+                    sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
+                    if waveform is None or sample_rate is None:
+                        continue
+
+                    audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+                    batch_refs.append(str(sample.get("transcription", "")))
+                    batch_ids.append(str(sample.get("id", start + idx)) if has_id else str(start + idx))
+                    batch_langs.append(str(sample.get("language", lang)) if has_language else lang)
+
+                processed = _run_inference_batch(
+                    pipeline=pipeline,
+                    args=args,
+                    audio_inputs=audio_inputs,
+                    batch_refs=batch_refs,
+                    batch_ids=batch_ids,
+                    batch_langs=batch_langs,
+                    refs=refs,
+                    hyps=hyps,
+                    out_f=out_f,
+                )
+                print(f"Processed {len(refs)}/{n_samples} samples (+{processed})")
 
     print(f"Saved predictions to: {output_path}")
 
