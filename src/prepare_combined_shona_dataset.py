@@ -1,4 +1,4 @@
-"""Build a combined Shona dataset from FLEURS and Waxal parquet partitions."""
+"""Build a combined FLEURS and Waxal dataset from parquet partitions."""
 
 import json
 import shutil
@@ -18,7 +18,7 @@ waxal_root = Path(sys.argv[2])
 combined_root = Path(sys.argv[3])
 
 # Source corpus, source split, destination split.
-# FLEURS has no validation role in this combined dataset: all of its examples
+# FLEURS has no validation role in a combined dataset: all of its examples
 # contribute to training. Waxal validation remains isolated for evaluation.
 partition_mapping = (
     (fleurs_root, "fleurs", "train", "train"),

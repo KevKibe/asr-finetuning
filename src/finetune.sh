@@ -6,21 +6,23 @@ set -euo pipefail
 
 usage() {
     cat << 'EOF'
-Usage: ./finetune.sh <dataset_repo> <model_name> [output_repo] [hf_token] [--combine-waxal-sna] [--test]
+Usage: ./finetune.sh <dataset_repo> <model_name> [output_repo] [hf_token] [--combine-waxal] [--test]
 
 Arguments:
   dataset_repo       HuggingFace dataset repo ID (e.g., KevinKibe/fleurs-shona-omni)
   model_name        Model to finetune (e.g., omniASR_CTC_300M, omniASR_LLM_1B)
   output_repo       HuggingFace repo to upload model (default: <dataset_repo>-finetuned)
   hf_token          HuggingFace API token (default: $HF_TOKEN env var)
-    --combine-waxal-sna
-                                        Combine FLEURS Shona train/dev/test with Waxal Shona
+    --combine-waxal
+                                        Combine supported FLEURS train/dev/test with matching Waxal
                                         train/test; use Waxal validation for evaluation
     --test            Run the smoke-test configuration (validation is skipped)
 
 Example:
   ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M KevinKibe/omniASR-fleurs-finetuned
-    ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M --combine-waxal-sna
+    ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M --combine-waxal
+    ./finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M --combine-waxal
+    ./finetune.sh KevinKibe/fleurs-luganda-omni omniASR_CTC_300M --combine-waxal
 
 Environment:
   HF_TOKEN          Your HuggingFace API token (for upload)
@@ -37,14 +39,14 @@ MODEL_NAME="$2"
 
 # Parse optional flags
 TEST_FLAG=""
-COMBINE_WAXAL_SNA=false
+COMBINE_WAXAL=false
 OUTPUT_REPO="${DATASET_REPO}-finetuned"
 HF_TOKEN="${HF_TOKEN:-}"
 
 for arg in "${@:3}"; do
     case "$arg" in
         --test) TEST_FLAG="--test" ;;
-        --combine-waxal-sna) COMBINE_WAXAL_SNA=true ;;
+        --combine-waxal|--combine-waxal-sna) COMBINE_WAXAL=true ;;
         hf_*|*:*) HF_TOKEN="$arg" ;;
         *) OUTPUT_REPO="$arg" ;;
     esac
@@ -75,9 +77,6 @@ DATASET_NAME=$(basename "$DATASET_REPO")
 DATASET_DIR="$SCRIPT_DIR/$DATASET_NAME"
 OUTPUT_DIR="$SCRIPT_DIR/finetuning_output"
 EXPORT_DIR="$SCRIPT_DIR/hf_export"
-WAXAL_REPO="KevinKibe/waxal-sna-omni"
-WAXAL_DIR="$SCRIPT_DIR/$(basename "$WAXAL_REPO")"
-COMBINED_DATASET_DIR="$SCRIPT_DIR/fleurs-waxal-sna-combined-omni"
 
 log_step "OmniASR Finetuning Workflow"
 echo "Dataset repo: $DATASET_REPO"
@@ -93,17 +92,34 @@ python3 "$SRC_DIR/dataset_download.py" "$DATASET_REPO" "$DATASET_DIR"
 log_success "Dataset downloaded"
 echo ""
 
-if [[ "$COMBINE_WAXAL_SNA" == true ]]; then
-    if [[ "$DATASET_REPO" != "KevinKibe/fleurs-shona-omni" ]]; then
-        log_error "--combine-waxal-sna requires KevinKibe/fleurs-shona-omni as the dataset repo"
-        exit 1
-    fi
+if [[ "$COMBINE_WAXAL" == true ]]; then
+    case "$DATASET_REPO" in
+        KevinKibe/fleurs-shona-omni)
+            WAXAL_REPO="KevinKibe/waxal-sna-omni"
+            LANGUAGE_LABEL="Shona"
+            ;;
+        KevinKibe/fleurs-lingala-omni)
+            WAXAL_REPO="KevinKibe/waxal-lin-omni"
+            LANGUAGE_LABEL="Lingala"
+            ;;
+        KevinKibe/fleurs-luganda-omni)
+            WAXAL_REPO="KevinKibe/waxal-lug-omni"
+            LANGUAGE_LABEL="Luganda"
+            ;;
+        *)
+            log_error "--combine-waxal supports FLEURS Shona, Lingala, or Luganda datasets"
+            exit 1
+            ;;
+    esac
 
-    log_step "Downloading Waxal Shona dataset from HuggingFace..."
+    WAXAL_DIR="$SCRIPT_DIR/$(basename "$WAXAL_REPO")"
+    COMBINED_DATASET_DIR="$SCRIPT_DIR/${DATASET_NAME}-$(basename "$WAXAL_REPO")-combined"
+
+    log_step "Downloading Waxal $LANGUAGE_LABEL dataset from HuggingFace..."
     python3 "$SRC_DIR/dataset_download.py" "$WAXAL_REPO" "$WAXAL_DIR"
     log_success "Waxal dataset downloaded"
 
-    log_step "Building combined FLEURS and Waxal Shona dataset..."
+    log_step "Building combined FLEURS and Waxal $LANGUAGE_LABEL dataset..."
     python3 "$SRC_DIR/prepare_combined_shona_dataset.py" \
         "$DATASET_DIR" "$WAXAL_DIR" "$COMBINED_DATASET_DIR"
     DATASET_DIR="$COMBINED_DATASET_DIR"
