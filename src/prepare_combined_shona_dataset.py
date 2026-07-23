@@ -62,12 +62,24 @@ def copy_partition(
             continue
 
         table = pq.read_table(parquet_file)
-        if "language" not in table.column_names:
-            raise ValueError(f"Missing language column in parquet file: {parquet_file}")
+        language_column = next(
+            (column for column in ("language", "lang") if column in table.column_names),
+            None,
+        )
 
-        language_index = table.schema.get_field_index("language")
+        if language_column is None:
+            # Some datasets store language only in their Hive-style directory
+            # name. The destination language=<canonical_language> directory is
+            # sufficient for fairseq2 to materialize the correct language field.
+            try:
+                destination_file.hardlink_to(parquet_file)
+            except OSError:
+                shutil.copy2(parquet_file, destination_file)
+            continue
+
+        language_index = table.schema.get_field_index(language_column)
         normalized_language = pa.array([canonical_language] * table.num_rows)
-        table = table.set_column(language_index, "language", normalized_language)
+        table = table.set_column(language_index, language_column, normalized_language)
         pq.write_table(table, destination_file)
 
     return len(parquet_files)
