@@ -90,7 +90,9 @@ for source_root, corpus, source_split, destination_split in partition_mapping:
             }
         )
 
-(combined_root / "composition.json").write_text(json.dumps(manifest, indent=2) + "\n")
+# PyArrow recursively scans the dataset root. Files prefixed with an underscore
+# are ignored by the dataset scanner, unlike a root-level composition.json.
+(combined_root / "_composition.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
 print(f"Combined dataset ready at: {combined_root}")
 for partition in manifest["partitions"]:
