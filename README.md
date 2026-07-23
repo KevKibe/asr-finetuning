@@ -80,7 +80,8 @@ python src/infer_waxalnlp.py \
 python src/infer_waxalnlp.py \
   --model-card omniASR_CTC_300M_lin_best_test \
   --language lin \
-  --max-samples 100
+  --max-samples 100 \
+  --streaming
 ```
 
 Outputs are written under `outputs/inference/`:

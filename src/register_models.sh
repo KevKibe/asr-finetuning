@@ -30,7 +30,7 @@ read -r -d '' MODEL_1 << 'EOF' || true
 - name: omniASR_CTC_300M_lin_10k_test
   model_family: wav2vec2_asr
   model_arch: 300m
-  checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-10k/tree/main/model/pp_00/tp_00/sdp_00.pt
+    checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-10k/resolve/main/model/pp_00/tp_00/sdp_00.pt
   tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
@@ -38,7 +38,7 @@ read -r -d '' MODEL_2 << 'EOF' || true
 - name: omniASR_CTC_300M_lin_best_test
   model_family: wav2vec2_asr
   model_arch: 300m
-  checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-finetuned/tree/main/model/pp_00/tp_00/sdp_00.pt
+    checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-finetuned/resolve/main/model/pp_00/tp_00/sdp_00.pt
   tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
@@ -50,7 +50,8 @@ if grep -q "omniASR_CTC_300M_lin_10k_test" "$MODELS_YAML"; then
     echo "✓ omniASR_CTC_300M_lin_10k_test already exists"
 else
     echo "Adding omniASR_CTC_300M_lin_10k_test..."
-    echo "$MODEL_1" >> "$MODELS_YAML"
+    # Ensure we append on a fresh line to avoid corrupting YAML when file lacks trailing newline.
+    printf "\n%s\n" "$MODEL_1" >> "$MODELS_YAML"
     echo "✓ Added omniASR_CTC_300M_lin_10k_test"
 fi
 
@@ -58,7 +59,8 @@ if grep -q "omniASR_CTC_300M_lin_best_test" "$MODELS_YAML"; then
     echo "✓ omniASR_CTC_300M_lin_best_test already exists"
 else
     echo "Adding omniASR_CTC_300M_lin_best_test..."
-    echo "$MODEL_2" >> "$MODELS_YAML"
+    # Ensure we append on a fresh line to avoid corrupting YAML when file lacks trailing newline.
+    printf "\n%s\n" "$MODEL_2" >> "$MODELS_YAML"
     echo "✓ Added omniASR_CTC_300M_lin_best_test"
 fi
 
