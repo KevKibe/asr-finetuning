@@ -5,6 +5,9 @@ import shutil
 import sys
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 
 if len(sys.argv) != 4:
     print(
@@ -30,7 +33,17 @@ partition_mapping = (
 )
 
 
-def copy_partition(source_dir: Path, destination_dir: Path, name_prefix: str) -> int:
+def language_base(language: str) -> str:
+    """Return the language portion of a BCP-47-like language identifier."""
+    return language.split("_", 1)[0]
+
+
+def copy_partition(
+    source_dir: Path,
+    destination_dir: Path,
+    name_prefix: str,
+    canonical_language: str,
+) -> int:
     parquet_files = sorted(source_dir.glob("*.parquet"))
     if not parquet_files:
         raise FileNotFoundError(f"No parquet files found in expected partition: {source_dir}")
@@ -39,10 +52,23 @@ def copy_partition(source_dir: Path, destination_dir: Path, name_prefix: str) ->
 
     for parquet_file in parquet_files:
         destination_file = destination_dir / f"{name_prefix}-{parquet_file.name}"
-        try:
-            destination_file.hardlink_to(parquet_file)
-        except OSError:
-            shutil.copy2(parquet_file, destination_file)
+        source_language = source_dir.name.removeprefix("language=")
+
+        if source_language == canonical_language:
+            try:
+                destination_file.hardlink_to(parquet_file)
+            except OSError:
+                shutil.copy2(parquet_file, destination_file)
+            continue
+
+        table = pq.read_table(parquet_file)
+        if "language" not in table.column_names:
+            raise ValueError(f"Missing language column in parquet file: {parquet_file}")
+
+        language_index = table.schema.get_field_index("language")
+        normalized_language = pa.array([canonical_language] * table.num_rows)
+        table = table.set_column(language_index, "language", normalized_language)
+        pq.write_table(table, destination_file)
 
     return len(parquet_files)
 
@@ -61,6 +87,16 @@ manifest = {
     "partitions": [],
 }
 
+# Models identify FLEURS languages with script-qualified labels (for example,
+# lug_Latn). Map Waxal's short labels (lug) to their matching FLEURS labels.
+fleurs_language_labels = {
+    language_dir.name.removeprefix("language=")
+    for language_dir in fleurs_root.glob("corpus=fleurs/split=*/language=*")
+}
+fleurs_language_by_base = {
+    language_base(language): language for language in fleurs_language_labels
+}
+
 for source_root, corpus, source_split, destination_split in partition_mapping:
     language_dirs = sorted(
         (source_root / f"corpus={corpus}" / f"split={source_split}").glob("language=*")
@@ -72,20 +108,30 @@ for source_root, corpus, source_split, destination_split in partition_mapping:
         )
 
     for language_dir in language_dirs:
+        source_language = language_dir.name.removeprefix("language=")
+        canonical_language = source_language
+        if source_root == waxal_root:
+            canonical_language = fleurs_language_by_base.get(
+                language_base(source_language), source_language
+            )
+
         destination_dir = (
             combined_root
             / f"corpus={corpus}"
             / f"split={destination_split}"
-            / language_dir.name
+            / f"language={canonical_language}"
         )
         name_prefix = f"source-{source_split}"
-        num_files = copy_partition(language_dir, destination_dir, name_prefix)
+        num_files = copy_partition(
+            language_dir, destination_dir, name_prefix, canonical_language
+        )
         manifest["partitions"].append(
             {
                 "corpus": corpus,
                 "source_split": source_split,
                 "destination_split": destination_split,
-                "language": language_dir.name.removeprefix("language="),
+                "source_language": source_language,
+                "language": canonical_language,
                 "parquet_files": num_files,
             }
         )
