@@ -40,7 +40,7 @@ def _count_train_groups(dataset_root: Path) -> tuple[int, int]:
 def _detect_valid_split(dataset_root: Path) -> str:
     """Pick validation split expected by the recipe from dataset folders."""
     split_names = {
-    p.parents[0].name.replace("split=", "", 1)
+        p.parents[0].name.replace("split=", "", 1)
         for p in dataset_root.glob("corpus=*/split=*/language=*")
         if p.parents[0].name.startswith("split=")
     }
@@ -77,7 +77,8 @@ config_path = config_dir / config_name
 # Smoke test settings (minimal)
 if test_mode:
     num_steps = 50
-    validate_every = 10
+    validate_after = num_steps + 1
+    validate_every = num_steps + 1
     checkpoint_every = 10
     publish_every = 10
     min_audio = 32_000
@@ -91,6 +92,7 @@ else:
     
     if is_llm:
         num_steps = 7_500
+        validate_after = 0
         validate_every = 2_500
         checkpoint_every = 2_500
         publish_every = 2_500
@@ -100,6 +102,7 @@ else:
         grad_accum = 4               # ← increased from 1
     else:  # CTC model
         num_steps = 7_500
+        validate_after = 0
         validate_every = 2_500
         checkpoint_every = 2_500
         publish_every = 2_500
@@ -182,7 +185,7 @@ trainer:
 regime:
   num_steps: {num_steps}
 
-  validate_after_n_steps: 0
+  validate_after_n_steps: {validate_after}
   validate_every_n_steps: {validate_every}
 
   checkpoint_every_n_steps: {checkpoint_every}
