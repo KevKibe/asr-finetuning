@@ -50,6 +50,10 @@ uv pip install --system --no-cache-dir \
 echo -e "${YELLOW}Installing tensorboard...${NC}"
 uv pip install --system tensorboard
 
+# Install inference-time dataset dependencies
+echo -e "${YELLOW}Installing Hugging Face datasets (audio extras)...${NC}"
+uv pip install --system "datasets[audio]"
+
 # Verify installation
 echo -e "${YELLOW}Verifying installation...${NC}"
 python3 << 'EOF'
