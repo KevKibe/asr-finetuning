@@ -27,19 +27,21 @@ echo "Found models file at: $MODELS_YAML"
 
 # Models to add
 read -r -d '' MODEL_1 << 'EOF' || true
-- name: omniASR_CTC_300M_lin_10k_test
-  model_family: wav2vec2_asr
-  model_arch: 300m
-    checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-10k/resolve/main/model/pp_00/tp_00/sdp_00.pt
-  tokenizer_ref: omniASR_tokenizer_v1
+---
+name: omniASR_CTC_300M_lin_10k_test
+model_family: wav2vec2_asr
+model_arch: 300m
+checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-10k/resolve/main/model/pp_00/tp_00/sdp_00.pt
+tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
 read -r -d '' MODEL_2 << 'EOF' || true
-- name: omniASR_CTC_300M_lin_best_test
-  model_family: wav2vec2_asr
-  model_arch: 300m
-    checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-finetuned/resolve/main/model/pp_00/tp_00/sdp_00.pt
-  tokenizer_ref: omniASR_tokenizer_v1
+---
+name: omniASR_CTC_300M_lin_best_test
+model_family: wav2vec2_asr
+model_arch: 300m
+checkpoint: https://huggingface.co/KevinKibe/omniASR-lingala-finetuned/resolve/main/model/pp_00/tp_00/sdp_00.pt
+tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
 # Check if models already exist
