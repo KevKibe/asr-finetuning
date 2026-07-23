@@ -147,7 +147,7 @@ def _run_inference_batch(
     *,
     pipeline: object,
     args: argparse.Namespace,
-    audio_inputs: list[dict[str, object]],
+    audio_inputs: list[object],
     batch_refs: list[str],
     batch_ids: list[str],
     batch_langs: list[str],
@@ -184,7 +184,9 @@ def main() -> int:
     _add_omnilingual_to_path(project_root)
 
     try:
-        load_dataset = importlib.import_module("datasets").load_dataset
+        datasets_module = importlib.import_module("datasets")
+        load_dataset = datasets_module.load_dataset
+        Audio = datasets_module.Audio
     except ImportError:
         _print_env_hints()
         print("Missing package: datasets", file=sys.stderr)
@@ -218,6 +220,10 @@ def main() -> int:
             split=args.split,
             streaming=args.streaming,
         )
+        # Bypass datasets' torchcodec decode path and hand raw audio bytes/path
+        # to Omnilingual, which performs its own decoding internally.
+        if "audio" in dataset.column_names:
+            dataset = dataset.cast_column("audio", Audio(decode=False))
     except Exception as exc:
         print(f"Failed to load dataset: {exc}", file=sys.stderr)
         return 1
@@ -250,7 +256,7 @@ def main() -> int:
             if args.max_samples is not None:
                 stream = itertools.islice(stream, args.max_samples)
 
-            audio_inputs: list[dict[str, object]] = []
+            audio_inputs: list[object] = []
             batch_refs: list[str] = []
             batch_ids: list[str] = []
             batch_langs: list[str] = []
@@ -260,12 +266,21 @@ def main() -> int:
                 if not isinstance(audio, dict):
                     continue
 
-                waveform = audio.get("array")
-                sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
-                if waveform is None or sample_rate is None:
-                    continue
+                audio_bytes = audio.get("bytes")
+                audio_path = audio.get("path")
 
-                audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+                if audio_bytes is not None:
+                    audio_inputs.append(audio_bytes)
+                elif audio_path:
+                    audio_inputs.append(audio_path)
+                else:
+                    # Fallback if decode=True slips through in a future datasets change.
+                    waveform = audio.get("array")
+                    sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
+                    if waveform is None or sample_rate is None:
+                        continue
+                    audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+
                 batch_refs.append(str(sample.get("transcription", "")))
                 batch_ids.append(str(sample.get("id", idx)) if has_id else str(idx))
                 batch_langs.append(str(sample.get("language", lang)) if has_language else lang)
@@ -314,12 +329,21 @@ def main() -> int:
                     if not isinstance(audio, dict):
                         continue
 
-                    waveform = audio.get("array")
-                    sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
-                    if waveform is None or sample_rate is None:
-                        continue
+                    audio_bytes = audio.get("bytes")
+                    audio_path = audio.get("path")
 
-                    audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+                    if audio_bytes is not None:
+                        audio_inputs.append(audio_bytes)
+                    elif audio_path:
+                        audio_inputs.append(audio_path)
+                    else:
+                        # Fallback if decode=True slips through in a future datasets change.
+                        waveform = audio.get("array")
+                        sample_rate = audio.get("sampling_rate", audio.get("sample_rate"))
+                        if waveform is None or sample_rate is None:
+                            continue
+                        audio_inputs.append({"waveform": waveform, "sample_rate": int(sample_rate)})
+
                     batch_refs.append(str(sample.get("transcription", "")))
                     batch_ids.append(str(sample.get("id", start + idx)) if has_id else str(start + idx))
                     batch_langs.append(str(sample.get("language", lang)) if has_language else lang)
