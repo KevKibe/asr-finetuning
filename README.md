@@ -22,6 +22,15 @@ docker run --gpus all -it asr-finetuning:latest <dataset_repo> <model_name> [--t
 # Smoke test (20 steps, ~5 min)
 bash src/finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M --test
 
+# Combined Shona training data: FLEURS train/dev/test + Waxal train/test.
+# This only checks data composition; smoke tests skip validation.
+bash src/finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M \
+  --combine-waxal-sna --test
+
+# Full combined Shona run. Validation uses only Waxal's validation split.
+bash src/finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M \
+  --combine-waxal-sna
+
 # Full training (10k steps)
 bash src/finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M
 
