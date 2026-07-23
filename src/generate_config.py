@@ -37,9 +37,25 @@ def _count_train_groups(dataset_root: Path) -> tuple[int, int]:
     return len(corpora), len(languages)
 
 
+def _detect_valid_split(dataset_root: Path) -> str:
+    """Pick validation split expected by the recipe from dataset folders."""
+    split_names = {
+        p.name.replace("split=", "", 1)
+        for p in dataset_root.glob("corpus=*/split=*/language=*")
+        if p.parents[0].name.startswith("split=")
+    }
+
+    for candidate in ("dev", "validation", "valid"):
+        if candidate in split_names:
+            return candidate
+
+    return "dev"
+
+
 num_corpora, num_languages = _count_train_groups(root)
 beta_corpus = 0.5 if num_corpora > 1 else 0.0
 beta_language = 0.5 if num_languages > 1 else 0.0
+valid_split = _detect_valid_split(root)
 
 # Determine config output directory
 # Look for omnilingual-asr in current directory or parent
@@ -104,6 +120,7 @@ Max audio: {max_audio}
 Grad accum: {grad_accum}
 Train corpora: {num_corpora} (beta_corpus={beta_corpus})
 Train languages: {num_languages} (beta_language={beta_language})
+Validation split: {valid_split}
 """)
 
 config = f"""
@@ -114,7 +131,7 @@ dataset:
   name: "example_dataset"
 
   train_split: "train"
-  valid_split: "dev"
+  valid_split: "{valid_split}"
 
   storage_mode: "MIXTURE_PARQUET"
   task_mode: "ASR"
