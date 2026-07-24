@@ -30,7 +30,7 @@ read -r -d '' MODEL_1 << 'EOF' || true
 ---
 name: shona-omni-300M-5000
 model_family: wav2vec2_asr
-model_arch: 300m
+model_arch: 300m_v2
 checkpoint: https://huggingface.co/KevinKibe/shona-omni-300M/resolve/main/checkpoints/step_5000/model/pp_00/tp_00/sdp_00.pt
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
@@ -39,7 +39,7 @@ read -r -d '' MODEL_2 << 'EOF' || true
 ---
 name: shona-omni-300M-10000
 model_family: wav2vec2_asr
-model_arch: 300m
+model_arch: 300m_v2
 checkpoint: https://huggingface.co/KevinKibe/shona-omni-300M/resolve/main/checkpoints/step_10000/model/pp_00/tp_00/sdp_00.pt
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
