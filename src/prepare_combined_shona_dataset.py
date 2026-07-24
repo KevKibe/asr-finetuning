@@ -5,7 +5,6 @@ import shutil
 import sys
 from pathlib import Path
 
-import pyarrow as pa
 import pyarrow.parquet as pq
 
 
@@ -53,9 +52,7 @@ def copy_partition(
     for parquet_file in parquet_files:
         destination_file = destination_dir / f"{name_prefix}-{parquet_file.name}"
         table = pq.read_table(parquet_file)
-        language_columns = [
-            column for column in ("language", "lang") if column in table.column_names
-        ]
+        language_columns = [column for column in ("language", "lang") if column in table.column_names]
 
         if not language_columns:
             # Some datasets store language only in their Hive-style directory
@@ -67,12 +64,10 @@ def copy_partition(
                 shutil.copy2(parquet_file, destination_file)
             continue
 
-        # Normalize language columns to plain string arrays in every file to
-        # prevent mixed string/dictionary schema merges on some environments.
-        normalized_language = pa.array([canonical_language] * table.num_rows, type=pa.string())
-        for language_column in language_columns:
-            language_index = table.schema.get_field_index(language_column)
-            table = table.set_column(language_index, language_column, normalized_language)
+        # Rely on hive partition paths (language=<canonical_language>) as the
+        # single source of truth, and drop in-file language columns to prevent
+        # schema merge conflicts (string vs dictionary) across environments.
+        table = table.drop_columns(language_columns)
 
         pq.write_table(table, destination_file)
 
