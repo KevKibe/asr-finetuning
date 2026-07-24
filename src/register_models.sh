@@ -34,7 +34,7 @@ model_arch: 300m_v2
 checkpoint: https://huggingface.co/KevinKibe/lingala-omni-300M/resolve/main/checkpoints/step_5000/model/pp_00/tp_00/sdp_00.pt
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
-re
+
 read -r -d '' MODEL_2 << 'EOF' || true
 ---
 name: lingala-omni-300M-10000
