@@ -165,7 +165,7 @@ tokenizer:
 
 optimizer:
   config:
-    lr: 5e-6
+    lr: 3e-6
 
 trainer:
   freeze_encoder_for_n_steps: 0
