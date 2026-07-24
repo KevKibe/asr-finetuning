@@ -171,7 +171,7 @@ trainer:
   freeze_encoder_for_n_steps: 0
 
   mixed_precision:
-    dtype: "torch.bfloat16"
+    dtype: "torch.float32"
 
   grad_accumulation:
     num_batches: {grad_accum}
