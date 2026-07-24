@@ -101,7 +101,7 @@ else:
         max_num_elements = 160_000   
         grad_accum = 4               
     else:  # CTC model
-        num_steps = 15_000
+        num_steps = 5_000
         validate_after = 2_500
         validate_every = 2_500
         checkpoint_every = 2_500
@@ -165,7 +165,7 @@ tokenizer:
 
 optimizer:
   config:
-    lr: 1e-5
+    lr: 5e-6
 
 trainer:
   freeze_encoder_for_n_steps: 0
