@@ -143,6 +143,8 @@ def main() -> int:
         return 1
     if "Target" not in df.columns:
         df["Target"] = ""
+    # Keep Target writable for text outputs even when CSV inference picks float.
+    df["Target"] = df["Target"].astype("object").where(df["Target"].notna(), "")
 
     audio_index = _build_audio_index(audio_dir)
     if not audio_index:
