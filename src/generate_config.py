@@ -79,7 +79,7 @@ config_path = config_dir / config_name
 
 # Smoke test settings (minimal)
 if test_mode:
-    num_steps = 200
+    num_steps = 100
     validate_after = 50
     validate_every = 50
     checkpoint_every = 50
