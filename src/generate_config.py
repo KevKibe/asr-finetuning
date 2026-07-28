@@ -112,7 +112,7 @@ else:
         validate_after = 2_500
         validate_every = 2_500
         checkpoint_every = 2_500
-        publish_every = 1000
+        publish_every = 500
         min_audio = 32_000
         max_audio = 960_000
         max_num_elements = 960_000
