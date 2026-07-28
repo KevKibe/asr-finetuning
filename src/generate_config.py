@@ -120,10 +120,11 @@ else:
         learning_rate = "1e-5"
         mixed_precision_dtype = "torch.float32"
 
-    if no_validation_mode:
-      # Keep train-only setups from running eval loops.
-      validate_after = num_steps + 1
-      validate_every = max(validate_every, 1)
+
+# Keep train-only setups from running eval loops.
+if no_validation_mode:
+    validate_after = num_steps + 1
+    validate_every = max(validate_every, 1)
 
 print(f"""
 Root: {root}
