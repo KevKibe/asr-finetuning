@@ -10,6 +10,7 @@ if len(sys.argv) < 2:
 root = Path(sys.argv[1])
 model_name = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else "omniASR_CTC_300M"
 test_mode = "--test" in sys.argv
+no_validation_mode = "--no-validation" in sys.argv
 
 # Use absolute path or relative to current directory
 if not root.is_absolute():
@@ -56,6 +57,8 @@ num_corpora, num_languages = _count_train_groups(root)
 beta_corpus = 0.5 if num_corpora > 1 else 0.0
 beta_language = 0.5 if num_languages > 1 else 0.0
 valid_split = _detect_valid_split(root)
+if no_validation_mode:
+  valid_split = "train"
 
 # Determine config output directory
 # Look for omnilingual-asr in current directory or parent
@@ -84,32 +87,43 @@ if test_mode:
     min_audio = 32_000
     max_audio = 960_000      
     max_num_elements = 960_000 
-    grad_accum = 1          
+    grad_accum = 1
+    learning_rate = "1e-5"
+    mixed_precision_dtype = "torch.float32"
     print("*** SMOKE TEST MODE ***")
 else:
     # Model-specific settings
     is_llm = "llm" in model_name.lower()
 
     if is_llm:
-        num_steps = 7_500
-        validate_after = 0
-        validate_every = 2_500
-        checkpoint_every = 2_500
-        publish_every = 2_500
+        num_steps = 20_000
+        validate_after = 5_000
+        validate_every = 5_000
+        checkpoint_every = 5_000
+        publish_every = 1000
         min_audio = 32_000
-        max_audio = 160_000          
-        max_num_elements = 160_000   
-        grad_accum = 4               
+        max_audio = 320_000          
+        max_num_elements = 320_000
+        grad_accum = 4
+        learning_rate = "5e-05"
+        mixed_precision_dtype = "torch.float32"
     else:  # CTC model
-        num_steps = 5_000
-        validate_after = 2_500
-        validate_every = 2_500
-        checkpoint_every = 2_500
-        publish_every = 500
+        num_steps = 20_000
+        validate_after = 5_000
+        validate_every = 5_000
+        checkpoint_every = 5_000
+        publish_every = 1000
         min_audio = 32_000
         max_audio = 960_000
         max_num_elements = 960_000
         grad_accum = 4
+        learning_rate = "1e-5"
+        mixed_precision_dtype = "torch.float32"
+
+    if no_validation_mode:
+      # Keep train-only setups from running eval loops.
+      validate_after = num_steps + 1
+      validate_every = max(validate_every, 1)
 
 print(f"""
 Root: {root}
@@ -124,6 +138,7 @@ Grad accum: {grad_accum}
 Train corpora: {num_corpora} (beta_corpus={beta_corpus})
 Train languages: {num_languages} (beta_language={beta_language})
 Validation split: {valid_split}
+Validation disabled: {no_validation_mode}
 """)
 
 config = f"""
@@ -165,13 +180,13 @@ tokenizer:
 
 optimizer:
   config:
-    lr: 1e-5
+    lr: {learning_rate}
 
 trainer:
   freeze_encoder_for_n_steps: 0
 
   mixed_precision:
-    dtype: "torch.float32"
+    dtype: "{mixed_precision_dtype}"
 
   grad_accumulation:
     num_batches: {grad_accum}
