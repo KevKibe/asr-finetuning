@@ -21,6 +21,17 @@ if len(sys.argv) != 5:
 waxal_roots = [Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])]
 combined_root = Path(sys.argv[4])
 
+# Omnilingual language IDs are script-qualified.
+LANGUAGE_CANONICAL_MAP = {
+    "sna": "sna_Latn",
+    "lug": "lug_Latn",
+    "lin": "lin_Latn",
+}
+
+
+def canonical_language(language: str) -> str:
+    return LANGUAGE_CANONICAL_MAP.get(language, language)
+
 
 def copy_partition(
     source_dir: Path,
@@ -75,7 +86,8 @@ for source_root in waxal_roots:
     for language_dir in language_dirs:
         source_split = language_dir.parents[0].name.removeprefix("split=")
         corpus = language_dir.parents[1].name.removeprefix("corpus=")
-        language = language_dir.name.removeprefix("language=")
+        source_language = language_dir.name.removeprefix("language=")
+        language = canonical_language(source_language)
 
         destination_dir = (
             combined_root
@@ -92,6 +104,7 @@ for source_root in waxal_roots:
                 "corpus": corpus,
                 "source_split": source_split,
                 "destination_split": "train",
+                "source_language": source_language,
                 "language": language,
                 "parquet_files": num_files,
             }
