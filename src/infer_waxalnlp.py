@@ -62,6 +62,12 @@ def _parse_args() -> argparse.Namespace:
         default=256,
         help="Chunk size for incremental transcription.",
     )
+    parser.add_argument(
+        "--max-audio-sec",
+        type=float,
+        default=40.0,
+        help="Skip samples longer than this duration in seconds (Omnilingual limit is 40s).",
+    )
     parser.add_argument("--device", default=None, help="Force device, e.g. cuda or cpu.")
     parser.add_argument(
         "--no-metrics",
@@ -215,6 +221,21 @@ def _run_inference_batch(
     return len(batch_refs)
 
 
+def _audio_duration_sec(decoded_audio: dict[str, object]) -> float | None:
+    waveform = decoded_audio.get("waveform")
+    sample_rate = decoded_audio.get("sample_rate")
+
+    if waveform is None or not isinstance(sample_rate, int) or sample_rate <= 0:
+        return None
+
+    try:
+        n_samples = len(waveform)
+    except TypeError:
+        return None
+
+    return n_samples / sample_rate
+
+
 def main() -> int:
     args = _parse_args()
     project_root = Path(__file__).resolve().parents[1]
@@ -289,6 +310,7 @@ def main() -> int:
     refs: list[str] = []
     hyps: list[str] = []
     skipped_decode = 0
+    skipped_too_long = 0
 
     with output_path.open("w", encoding="utf-8") as out_f:
         if args.streaming:
@@ -306,6 +328,14 @@ def main() -> int:
                 decoded = _decode_audio_to_waveform(audio, sf_module)
                 if decoded is None:
                     skipped_decode += 1
+                    continue
+
+                duration_sec = _audio_duration_sec(decoded)
+                if duration_sec is None:
+                    skipped_decode += 1
+                    continue
+                if duration_sec > args.max_audio_sec:
+                    skipped_too_long += 1
                     continue
                 audio_inputs.append(decoded)
 
@@ -358,6 +388,14 @@ def main() -> int:
                     if decoded is None:
                         skipped_decode += 1
                         continue
+
+                    duration_sec = _audio_duration_sec(decoded)
+                    if duration_sec is None:
+                        skipped_decode += 1
+                        continue
+                    if duration_sec > args.max_audio_sec:
+                        skipped_too_long += 1
+                        continue
                     audio_inputs.append(decoded)
 
                     batch_refs.append(str(sample.get("transcription", "")))
@@ -380,6 +418,11 @@ def main() -> int:
     print(f"Saved predictions to: {output_path}")
     if skipped_decode:
         print(f"Skipped {skipped_decode} samples due to audio decode failures")
+    if skipped_too_long:
+        print(
+            f"Skipped {skipped_too_long} samples longer than {args.max_audio_sec:.2f}s "
+            "to satisfy Omnilingual max-audio constraints"
+        )
 
     if not args.no_metrics:
         wer = _compute_wer(refs, hyps)
