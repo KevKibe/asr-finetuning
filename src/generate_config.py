@@ -109,9 +109,9 @@ else:
         mixed_precision_dtype = "torch.float32"
     else:  # CTC model
         num_steps = 10_000
-        validate_after = 2_500
-        validate_every = 2_500
-        checkpoint_every = 2_500
+        validate_after = 5_000
+        validate_every = 5_000
+        checkpoint_every = 5_000
         publish_every = 500
         min_audio = 32_000
         max_audio = 960_000
