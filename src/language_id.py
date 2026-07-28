@@ -20,7 +20,11 @@ DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run MMS language ID on wav files in a directory.")
-    parser.add_argument("audio_dir", help="Directory containing .wav files.")
+    parser.add_argument(
+        "--audio_dir",
+        default="audio",
+        help="Directory containing .wav files (default: audio).",
+    )
     parser.add_argument(
         "--output",
         default="language_predictions.csv",
