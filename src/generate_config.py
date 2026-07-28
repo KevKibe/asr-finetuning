@@ -10,7 +10,6 @@ if len(sys.argv) < 2:
 root = Path(sys.argv[1])
 model_name = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else "omniASR_CTC_300M"
 test_mode = "--test" in sys.argv
-no_validation_mode = "--no-validation" in sys.argv
 
 # Use absolute path or relative to current directory
 if not root.is_absolute():
@@ -57,8 +56,6 @@ num_corpora, num_languages = _count_train_groups(root)
 beta_corpus = 0.5 if num_corpora > 1 else 0.0
 beta_language = 0.5 if num_languages > 1 else 0.0
 valid_split = _detect_valid_split(root)
-if no_validation_mode:
-  valid_split = "train"
 
 # Determine config output directory
 # Look for omnilingual-asr in current directory or parent
@@ -120,12 +117,6 @@ else:
         learning_rate = "1e-5"
         mixed_precision_dtype = "torch.float32"
 
-
-# Keep train-only setups from running eval loops.
-if no_validation_mode:
-    validate_after = num_steps + 1
-    validate_every = max(validate_every, 1)
-
 print(f"""
 Root: {root}
 Model: {model_name}
@@ -139,7 +130,6 @@ Grad accum: {grad_accum}
 Train corpora: {num_corpora} (beta_corpus={beta_corpus})
 Train languages: {num_languages} (beta_language={beta_language})
 Validation split: {valid_split}
-Validation disabled: {no_validation_mode}
 """)
 
 config = f"""

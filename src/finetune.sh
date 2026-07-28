@@ -6,7 +6,7 @@ set -euo pipefail
 
 usage() {
     cat << 'EOF'
-Usage: ./finetune.sh <dataset_repo> <model_name> [output_repo] [hf_token] [--combine-waxal] [--combine-waxal-all-train] [--no-validation] [--test]
+Usage: ./finetune.sh <dataset_repo> <model_name> [output_repo] [hf_token] [--combine-waxal] [--combine-waxal-all-train] [--test]
 
 Arguments:
   dataset_repo       HuggingFace dataset repo ID (e.g., KevinKibe/fleurs-shona-omni)
@@ -18,8 +18,7 @@ Arguments:
                                         train/test; use Waxal validation for evaluation
     --combine-waxal-all-train
                                         Download Waxal SNA/LIN/LUG datasets and combine
-                                        train/test/validation from all three into split=train
-    --no-validation   Disable validation (sets valid_split=train and skips eval schedule)
+                                        train/test into split=train and validation into split=validation
     --test            Run the smoke-test configuration (validation is skipped)
 
 Example:
@@ -27,7 +26,7 @@ Example:
     ./finetune.sh KevinKibe/fleurs-shona-omni omniASR_CTC_300M --combine-waxal-sna
     ./finetune.sh KevinKibe/fleurs-lingala-omni omniASR_CTC_300M --combine-waxal-lin
     ./finetune.sh KevinKibe/fleurs-luganda-omni omniASR_CTC_300M --combine-waxal-lug
-    ./finetune.sh waxal-multilang omniASR_CTC_300M --combine-waxal-all-train --no-validation
+    ./finetune.sh waxal-multilang omniASR_CTC_300M --combine-waxal-all-train
 
 Environment:
   HF_TOKEN          Your HuggingFace API token (for upload)
@@ -46,7 +45,6 @@ MODEL_NAME="$2"
 TEST_FLAG=""
 COMBINE_WAXAL=false
 COMBINE_WAXAL_ALL_TRAIN=false
-NO_VALIDATION_FLAG=""
 OUTPUT_REPO="${DATASET_REPO}-finetuned"
 HF_TOKEN="${HF_TOKEN:-}"
 
@@ -59,9 +57,6 @@ for arg in "${@:3}"; do
         --combine-waxal-all-train)
             COMBINE_WAXAL_ALL_TRAIN=true
             ;;
-        --no-validation)
-            NO_VALIDATION_FLAG="--no-validation"
-            ;;
         --*)
             echo "Unknown option: $arg" >&2
             usage
@@ -72,7 +67,7 @@ for arg in "${@:3}"; do
 done
 
 if [[ "$COMBINE_WAXAL" == true && "$COMBINE_WAXAL_ALL_TRAIN" == true ]]; then
-    log_error "Use either --combine-waxal or --combine-waxal-all-train, not both"
+    echo "Use either --combine-waxal or --combine-waxal-all-train, not both" >&2
     exit 1
 fi
 
@@ -127,7 +122,7 @@ if [[ "$COMBINE_WAXAL_ALL_TRAIN" == true ]]; then
     WAXAL_SNA_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[0]}")"
     WAXAL_LIN_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[1]}")"
     WAXAL_LUG_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[2]}")"
-    COMBINED_DATASET_DIR="$SCRIPT_DIR/waxal-sna-lin-lug-combined-trainall"
+    COMBINED_DATASET_DIR="$SCRIPT_DIR/waxal-sna-lin-lug-combined"
 
     log_step "Downloading Waxal SNA/LIN/LUG datasets from HuggingFace..."
     python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[0]}" "$WAXAL_SNA_DIR"
@@ -136,7 +131,7 @@ if [[ "$COMBINE_WAXAL_ALL_TRAIN" == true ]]; then
     log_success "Waxal datasets downloaded"
     echo ""
 
-    log_step "Building combined Waxal multi-language train-only dataset..."
+    log_step "Building combined Waxal multi-language dataset..."
     python3 "$SRC_DIR/prepare_combined_waxal_dataset.py" \
         "$WAXAL_SNA_DIR" "$WAXAL_LIN_DIR" "$WAXAL_LUG_DIR" "$COMBINED_DATASET_DIR"
     DATASET_DIR="$COMBINED_DATASET_DIR"
@@ -196,7 +191,7 @@ echo ""
 
 # Step 3: Generate config
 log_step "Generating finetuning config..."
-python3 "$SRC_DIR/generate_config.py" "$DATASET_DIR" "$MODEL_NAME" ${TEST_FLAG} ${NO_VALIDATION_FLAG}
+python3 "$SRC_DIR/generate_config.py" "$DATASET_DIR" "$MODEL_NAME" ${TEST_FLAG}
 log_success "Config generated"
 echo ""
 
