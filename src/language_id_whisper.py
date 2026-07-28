@@ -15,7 +15,8 @@ import torchaudio
 from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
 DEFAULT_MODEL = "openai/whisper-large-v3"
-DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEFAULT_DEVICE = "cuda"
+DEFAULT_DTYPE = torch.float32
 
 
 def _parse_args() -> argparse.Namespace:
@@ -102,7 +103,8 @@ def _detect_language(
 
     audio = waveform.squeeze().numpy()
     inputs = processor(audio=audio, sampling_rate=16000, return_tensors="pt")
-    input_features = inputs.input_features.to(device)
+    model_dtype = next(model.parameters()).dtype
+    input_features = inputs.input_features.to(device=device, dtype=model_dtype)
 
     start_id = model.generation_config.decoder_start_token_id
     decoder_input_ids = torch.tensor([[start_id]], device=device)
@@ -136,7 +138,10 @@ def main() -> int:
         return 1
 
     processor = WhisperProcessor.from_pretrained(DEFAULT_MODEL)
-    model = WhisperForConditionalGeneration.from_pretrained(DEFAULT_MODEL)
+    model = WhisperForConditionalGeneration.from_pretrained(
+        DEFAULT_MODEL,
+        torch_dtype=DEFAULT_DTYPE,
+    )
     model.to(DEFAULT_DEVICE)
     model.eval()
 
