@@ -81,7 +81,7 @@ config_path = config_dir / config_name
 if test_mode:
     num_steps = 100
     validate_after = 50
-    validate_every = 50
+    validate_every = 0
     checkpoint_every = 50
     publish_every = 10
     min_audio = 32_000
