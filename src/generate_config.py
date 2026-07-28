@@ -108,10 +108,10 @@ else:
         learning_rate = "5e-05"
         mixed_precision_dtype = "torch.float32"
     else:  # CTC model
-        num_steps = 20_000
-        validate_after = 10_000
-        validate_every = 10_000
-        checkpoint_every = 5_000
+        num_steps = 10_000
+        validate_after = 2_500
+        validate_every = 2_500
+        checkpoint_every = 2_500
         publish_every = 1000
         min_audio = 32_000
         max_audio = 960_000
