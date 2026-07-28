@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import glob
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -32,18 +33,53 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _build_lang_maps(processor: WhisperProcessor) -> tuple[dict[str, int], dict[int, str]]:
-    tokenizer = processor.tokenizer
-
-    # HF variants expose either {'en': id} or {'<|en|>': id}.
-    raw_map = tokenizer.lang_to_id
+def _normalize_lang_map(raw_map: dict[str, int]) -> tuple[dict[str, int], dict[int, str]]:
     code_to_id: dict[str, int] = {}
-
     for key, token_id in raw_map.items():
         code = key
         if code.startswith("<|") and code.endswith("|>"):
             code = code[2:-2]
-        code_to_id[code] = token_id
+        code_to_id[code] = int(token_id)
+
+    id_to_code = {token_id: code for code, token_id in code_to_id.items()}
+    return code_to_id, id_to_code
+
+
+def _build_lang_maps(
+    processor: WhisperProcessor,
+    model: WhisperForConditionalGeneration,
+) -> tuple[dict[str, int], dict[int, str]]:
+    tokenizer = processor.tokenizer
+
+    # Newer HF versions expose this directly on tokenizer.
+    raw_map = getattr(tokenizer, "lang_to_id", None)
+    if isinstance(raw_map, dict) and raw_map:
+        return _normalize_lang_map(raw_map)
+
+    # Some versions expose language ids via generation config.
+    raw_map = getattr(model.generation_config, "lang_to_id", None)
+    if isinstance(raw_map, dict) and raw_map:
+        return _normalize_lang_map(raw_map)
+
+    # Fallback: infer language tokens from additional special tokens.
+    code_to_id: dict[str, int] = {}
+    for token in getattr(tokenizer, "additional_special_tokens", []) or []:
+        if not (token.startswith("<|") and token.endswith("|>")):
+            continue
+        code = token[2:-2]
+        if not re.fullmatch(r"[a-z]{2,5}", code):
+            continue
+
+        token_id = tokenizer.convert_tokens_to_ids(token)
+        if token_id is None or token_id < 0:
+            continue
+        code_to_id[code] = int(token_id)
+
+    if not code_to_id:
+        raise RuntimeError(
+            "Could not discover Whisper language tokens for this Transformers version. "
+            "Upgrade transformers or switch to a multilingual Whisper checkpoint."
+        )
 
     id_to_code = {token_id: code for code, token_id in code_to_id.items()}
     return code_to_id, id_to_code
@@ -104,7 +140,7 @@ def main() -> int:
     model.to(DEFAULT_DEVICE)
     model.eval()
 
-    code_to_id, id_to_code = _build_lang_maps(processor)
+    code_to_id, id_to_code = _build_lang_maps(processor, model)
     lang_token_ids = list(code_to_id.values())
 
     results = []
