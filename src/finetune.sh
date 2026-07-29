@@ -17,8 +17,8 @@ Arguments:
                                         Combine supported FLEURS train/dev/test with matching Waxal
                                         train/test; use Waxal validation for evaluation
     --combine-waxal-all-train
-                                        Download Waxal SNA/LIN/LUG datasets and combine
-                                        train/test into split=train and validation into split=validation
+                                        Download Waxal SNA/LIN/LUG datasets and combine,
+                                        or use google/WaxalNLP raw ASR parquet splits when dataset_repo is google/WaxalNLP
     --test            Run the smoke-test configuration (validation is skipped)
 
 Example:
@@ -113,31 +113,48 @@ echo ""
 cd "$SCRIPT_DIR"
 
 if [[ "$COMBINE_WAXAL_ALL_TRAIN" == true ]]; then
-    WAXAL_REPOS=(
-        "KevinKibe/waxal-sna-omni"
-        "KevinKibe/waxal-lin-omni"
-        "KevinKibe/waxal-lug-omni"
-    )
+    if [[ "$DATASET_REPO" == "google/WaxalNLP" ]]; then
+        WAXAL_DIR="$SCRIPT_DIR/$(basename "$DATASET_REPO")"
+        COMBINED_DATASET_DIR="$SCRIPT_DIR/waxalnlp-combined"
 
-    WAXAL_SNA_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[0]}")"
-    WAXAL_LIN_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[1]}")"
-    WAXAL_LUG_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[2]}")"
-    COMBINED_DATASET_DIR="$SCRIPT_DIR/waxal-sna-lin-lug-combined"
+        log_step "Downloading google/WaxalNLP dataset from HuggingFace..."
+        python3 "$SRC_DIR/dataset_download.py" "$DATASET_REPO" "$WAXAL_DIR"
+        log_success "WaxalNLP dataset downloaded"
+        echo ""
 
-    log_step "Downloading Waxal SNA/LIN/LUG datasets from HuggingFace..."
-    python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[0]}" "$WAXAL_SNA_DIR"
-    python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[1]}" "$WAXAL_LIN_DIR"
-    python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[2]}" "$WAXAL_LUG_DIR"
-    log_success "Waxal datasets downloaded"
-    echo ""
+        log_step "Building combined WaxalNLP dataset..."
+        python3 "$SRC_DIR/prepare_waxalnlp_dataset.py" "$WAXAL_DIR" "$COMBINED_DATASET_DIR"
+        DATASET_DIR="$COMBINED_DATASET_DIR"
+        DATASET_NAME=$(basename "$DATASET_DIR")
+        log_success "Combined WaxalNLP dataset built"
+        echo ""
+    else
+        WAXAL_REPOS=(
+            "KevinKibe/waxal-sna-omni"
+            "KevinKibe/waxal-lin-omni"
+            "KevinKibe/waxal-lug-omni"
+        )
 
-    log_step "Building combined Waxal multi-language dataset..."
-    python3 "$SRC_DIR/prepare_combined_waxal_dataset.py" \
-        "$WAXAL_SNA_DIR" "$WAXAL_LIN_DIR" "$WAXAL_LUG_DIR" "$COMBINED_DATASET_DIR"
-    DATASET_DIR="$COMBINED_DATASET_DIR"
-    DATASET_NAME=$(basename "$DATASET_DIR")
-    log_success "Combined Waxal multi-language dataset built"
-    echo ""
+        WAXAL_SNA_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[0]}")"
+        WAXAL_LIN_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[1]}")"
+        WAXAL_LUG_DIR="$SCRIPT_DIR/$(basename "${WAXAL_REPOS[2]}")"
+        COMBINED_DATASET_DIR="$SCRIPT_DIR/waxal-sna-lin-lug-combined"
+
+        log_step "Downloading Waxal SNA/LIN/LUG datasets from HuggingFace..."
+        python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[0]}" "$WAXAL_SNA_DIR"
+        python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[1]}" "$WAXAL_LIN_DIR"
+        python3 "$SRC_DIR/dataset_download.py" "${WAXAL_REPOS[2]}" "$WAXAL_LUG_DIR"
+        log_success "Waxal datasets downloaded"
+        echo ""
+
+        log_step "Building combined Waxal multi-language dataset..."
+        python3 "$SRC_DIR/prepare_combined_waxal_dataset.py" \
+            "$WAXAL_SNA_DIR" "$WAXAL_LIN_DIR" "$WAXAL_LUG_DIR" "$COMBINED_DATASET_DIR"
+        DATASET_DIR="$COMBINED_DATASET_DIR"
+        DATASET_NAME=$(basename "$DATASET_DIR")
+        log_success "Combined Waxal multi-language dataset built"
+        echo ""
+    fi
 else
     # Step 1: Download dataset
     log_step "Downloading dataset from HuggingFace..."
