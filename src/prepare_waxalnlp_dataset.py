@@ -4,8 +4,8 @@
 Supports the Hugging Face layout used by google/WaxalNLP, where ASR shards live
 under `data/ASR/<language>/<language>-<split>-<shard>.parquet`.
 
-Train and test are merged into split=train, while validation/dev/valid are
-merged into split=validation.
+Train and test are merged into split=train, while validation is kept in
+split=validation.
 """
 
 from __future__ import annotations
@@ -56,12 +56,12 @@ NUMERIC_MINIMUMS = {
 }
 
 WAXAL_FILE_RE = re.compile(
-    r"^(?P<language>[A-Za-z0-9_\-]+)-(?P<split>train|test|validation|valid|dev)-(?P<shard>\d+)\.parquet$"
+    r"^(?P<language>[A-Za-z0-9_\-]+)-(?P<split>train|test|validation)-(?P<shard>\d+)\.parquet$"
 )
 
 
 def destination_split(source_split: str) -> str:
-    if source_split in {"validation", "valid", "dev"}:
+    if source_split == "validation":
         return "validation"
     return "train"
 
@@ -237,8 +237,8 @@ def copy_partition(
 
     if copied_files == 0:
         raise ValueError(
-        "All rows were filtered out while sanitizing partition "
-        f"{source_dir}. Check source parquet contents for invalid rows."
+            "All rows were filtered out while sanitizing partition "
+            f"{source_dir}. Check source parquet contents for invalid rows."
         )
 
     return {

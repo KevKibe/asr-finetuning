@@ -15,7 +15,7 @@ num_rows = 0
 
 
 WAXAL_FILENAME_RE = re.compile(
-    r"^(?P<language>[A-Za-z0-9_\-]+)-(?P<split>train|test|validation|valid|dev)-(?P<shard>\d+)\.parquet$"
+    r"^(?P<language>[A-Za-z0-9_\-]+)-(?P<split>train|test|validation)-(?P<shard>\d+)\.parquet$"
 )
 
 
@@ -58,7 +58,7 @@ def _infer_waxal_partition(dataset_root: Path, parquet_file: Path):
         if "-" in filename_stem:
             split = filename_stem.split("-")[-1]
 
-    if corpus is None or language is None or split is None:
+    if corpus is None or language is None or split not in {"train", "test", "validation"}:
         return None
 
     return corpus, split, language

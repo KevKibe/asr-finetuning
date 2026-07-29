@@ -10,6 +10,10 @@ if len(sys.argv) < 2:
 dataset_repo = sys.argv[1]
 local_dir = sys.argv[2] if len(sys.argv) > 2 else Path.cwd() / Path(dataset_repo).name
 
+allow_patterns = None
+if len(sys.argv) > 3:
+    allow_patterns = sys.argv[3].split(";")
+
 print(f"Downloading dataset: {dataset_repo}")
 print(f"Destination: {local_dir}\n")
 
@@ -17,6 +21,7 @@ dataset_path = snapshot_download(
     repo_id=dataset_repo,
     repo_type="dataset",
     local_dir=local_dir
+    , allow_patterns=allow_patterns
 )
 
 print(f"\nDataset ready at: {dataset_path}")

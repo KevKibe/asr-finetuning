@@ -116,9 +116,10 @@ if [[ "$COMBINE_WAXAL_ALL_TRAIN" == true ]]; then
     if [[ "$DATASET_REPO" == "google/WaxalNLP" ]]; then
         WAXAL_DIR="$SCRIPT_DIR/$(basename "$DATASET_REPO")"
         COMBINED_DATASET_DIR="$SCRIPT_DIR/waxalnlp-combined"
+        WAXAL_ALLOW_PATTERNS="data/ASR/**/**-train-*.parquet;data/ASR/**/**-test-*.parquet;data/ASR/**/**-validation-*.parquet"
 
         log_step "Downloading google/WaxalNLP dataset from HuggingFace..."
-        python3 "$SRC_DIR/dataset_download.py" "$DATASET_REPO" "$WAXAL_DIR"
+        python3 "$SRC_DIR/dataset_download.py" "$DATASET_REPO" "$WAXAL_DIR" "$WAXAL_ALLOW_PATTERNS"
         log_success "WaxalNLP dataset downloaded"
         echo ""
 
