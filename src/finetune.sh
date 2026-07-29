@@ -183,6 +183,29 @@ if [[ "$COMBINE_WAXAL" == true ]]; then
     echo ""
 fi
 
+if [[ "$COMBINE_WAXAL" == true || "$COMBINE_WAXAL_ALL_TRAIN" == true ]]; then
+    COMPOSITION_FILE="$DATASET_DIR/_composition.json"
+    if [[ ! -f "$COMPOSITION_FILE" ]]; then
+        log_error "Combined dataset composition file not found: $COMPOSITION_FILE"
+        exit 1
+    fi
+
+    if ! grep -q '"dropped_rows"' "$COMPOSITION_FILE"; then
+        log_error "Combined dataset metadata is stale (missing dropped_rows)."
+        log_error "Rebuild with updated combine scripts before training."
+        exit 1
+    fi
+
+    if ! grep -q '"normalized_audio_paths"' "$COMPOSITION_FILE"; then
+        log_error "Combined dataset metadata is stale (missing normalized_audio_paths)."
+        log_error "Rebuild with updated combine scripts before training."
+        exit 1
+    fi
+
+    log_success "Combined dataset metadata includes sanitization and audio-path normalization"
+    echo ""
+fi
+
 # Step 2: Generate language distribution
 log_step "Generating language distribution..."
 python3 "$SRC_DIR/lang_distribution.py" "$DATASET_DIR"

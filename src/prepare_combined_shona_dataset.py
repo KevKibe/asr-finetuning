@@ -4,6 +4,7 @@ import json
 import shutil
 import sys
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.compute as pc
@@ -121,11 +122,82 @@ def sanitize_rows(table: pa.Table) -> tuple[pa.Table, int]:
     return filtered, dropped_rows
 
 
+def _candidate_path_bases(source_dir: Path, source_dataset_root: Path) -> list[Path]:
+    bases = [source_dir]
+
+    for i in range(1, 4):
+        if len(source_dir.parents) >= i:
+            bases.append(source_dir.parents[i - 1])
+
+    bases.append(source_dataset_root)
+
+    deduped: list[Path] = []
+    seen = set()
+    for base in bases:
+        resolved = base.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(resolved)
+
+    return deduped
+
+
+def _normalize_audio_path(value: Any, path_bases: list[Path]) -> Any:
+    if value is None:
+        return value
+
+    if not isinstance(value, dict):
+        return value
+
+    path = value.get("path")
+    if not isinstance(path, str) or not path.strip():
+        return value
+
+    path_obj = Path(path)
+    if path_obj.is_absolute():
+        return value
+
+    for base in path_bases:
+        candidate = (base / path_obj).resolve()
+        if candidate.exists():
+            updated = dict(value)
+            updated["path"] = str(candidate)
+            return updated
+
+    return value
+
+
+def normalize_audio_paths(table: pa.Table, source_dir: Path, source_dataset_root: Path) -> tuple[pa.Table, int]:
+    path_bases = _candidate_path_bases(source_dir, source_dataset_root)
+    normalized_rows = 0
+
+    for column_name in ("audio", "speech"):
+        if column_name not in table.column_names:
+            continue
+
+        column_idx = table.column_names.index(column_name)
+        field_type = table.schema.field(column_name).type
+        rows = table[column_name].to_pylist()
+        updated_rows = []
+
+        for row in rows:
+            normalized = _normalize_audio_path(row, path_bases)
+            if normalized is not row:
+                normalized_rows += 1
+            updated_rows.append(normalized)
+
+        table = table.set_column(column_idx, column_name, pa.array(updated_rows, type=field_type))
+
+    return table, normalized_rows
+
+
 def copy_partition(
     source_dir: Path,
     destination_dir: Path,
     name_prefix: str,
     canonical_language: str,
+    source_dataset_root: Path,
 ) -> dict[str, int]:
     parquet_files = sorted(source_dir.glob("*.parquet"))
     if not parquet_files:
@@ -138,11 +210,16 @@ def copy_partition(
     rows_before = 0
     rows_after = 0
     dropped_rows = 0
+    normalized_audio_paths = 0
 
     for parquet_file in parquet_files:
         destination_file = destination_dir / f"{name_prefix}-{parquet_file.name}"
         table = pq.read_table(parquet_file)
         rows_before += table.num_rows
+
+        table, path_updates = normalize_audio_paths(table, source_dir, source_dataset_root)
+        normalized_audio_paths += path_updates
+
         table, table_dropped_rows = sanitize_rows(table)
         dropped_rows += table_dropped_rows
 
@@ -188,6 +265,7 @@ def copy_partition(
         "rows_after": rows_after,
         "dropped_rows": dropped_rows,
         "dropped_files": dropped_files,
+        "normalized_audio_paths": normalized_audio_paths,
     }
 
 
@@ -241,7 +319,11 @@ for source_root, corpus, source_split, destination_split in partition_mapping:
         )
         name_prefix = f"source-{source_split}"
         partition_stats = copy_partition(
-            language_dir, destination_dir, name_prefix, canonical_language
+            language_dir,
+            destination_dir,
+            name_prefix,
+            canonical_language,
+            source_root,
         )
         manifest["partitions"].append(
             {
@@ -255,6 +337,7 @@ for source_root, corpus, source_split, destination_split in partition_mapping:
                 "rows_after": partition_stats["rows_after"],
                 "dropped_rows": partition_stats["dropped_rows"],
                 "dropped_files": partition_stats["dropped_files"],
+                "normalized_audio_paths": partition_stats["normalized_audio_paths"],
             }
         )
 
@@ -268,5 +351,5 @@ for partition in manifest["partitions"]:
         f"  {partition['corpus']}/{partition['source_split']} -> "
         f"{partition['destination_split']} ({partition['language']}, "
         f"{partition['parquet_files']} parquet file(s), dropped_rows={partition['dropped_rows']}, "
-        f"dropped_files={partition['dropped_files']})"
+        f"dropped_files={partition['dropped_files']}, normalized_audio_paths={partition['normalized_audio_paths']})"
     )
