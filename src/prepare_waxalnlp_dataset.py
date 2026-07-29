@@ -193,14 +193,14 @@ def normalize_audio_paths(table: pa.Table, source_dir: Path, source_dataset_root
 
 
 def copy_partition(
-    source_dir: Path,
+    source_files: list[Path],
     destination_dir: Path,
     name_prefix: str,
     source_dataset_root: Path,
 ) -> dict[str, int]:
-    parquet_files = sorted(source_dir.glob("*.parquet"))
+    parquet_files = sorted(source_files)
     if not parquet_files:
-        raise FileNotFoundError(f"No parquet files found in expected partition: {source_dir}")
+        raise FileNotFoundError("No parquet files found in expected partition")
 
     destination_dir.mkdir(parents=True, exist_ok=True)
 
@@ -216,7 +216,7 @@ def copy_partition(
         table = pq.read_table(parquet_file)
         rows_before += table.num_rows
 
-        table, path_updates = normalize_audio_paths(table, source_dir, source_dataset_root)
+        table, path_updates = normalize_audio_paths(table, parquet_file.parent, source_dataset_root)
         normalized_audio_paths += path_updates
 
         table, table_dropped_rows = sanitize_rows(table)
@@ -229,16 +229,24 @@ def copy_partition(
         rows_after += table.num_rows
         language_columns = [column for column in ("language", "lang") if column in table.column_names]
 
+        should_rewrite = (table_dropped_rows > 0) or (path_updates > 0) or bool(language_columns)
+
         if language_columns:
             table = table.drop_columns(language_columns)
 
-        pq.write_table(table, destination_file)
+        if should_rewrite:
+            pq.write_table(table, destination_file)
+        else:
+            try:
+                destination_file.hardlink_to(parquet_file)
+            except OSError:
+                shutil.copy2(parquet_file, destination_file)
         copied_files += 1
 
     if copied_files == 0:
         raise ValueError(
             "All rows were filtered out while sanitizing partition "
-            f"{source_dir}. Check source parquet contents for invalid rows."
+            f"{parquet_files[0].parent}. Check source parquet contents for invalid rows."
         )
 
     return {
@@ -291,7 +299,7 @@ for language_dir in language_dirs:
         name_prefix = f"source-{source_language}-{target_split}"
 
         partition_stats = copy_partition(
-            language_dir,
+            split_files,
             destination_dir,
             name_prefix,
             source_root,
