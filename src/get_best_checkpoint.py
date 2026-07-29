@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import json
 import shutil
+from typing import Optional
 
 
 # Get paths from command-line arguments or use defaults
@@ -32,6 +33,45 @@ def load_jsonl(path: Path):
     return rows
 
 
+def _parse_step(value) -> Optional[int]:
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def _checkpoint_weight_exists(ckpt_dir: Path) -> bool:
+    # Keep compatibility with fairseq2 checkpoint layout.
+    return (ckpt_dir / "model/pp_00/tp_00/sdp_00.pt").exists()
+
+
+def _checkpoint_steps(run_dir: Path) -> list[int]:
+    checkpoints_root = run_dir / "checkpoints"
+    steps = []
+    for ckpt_dir in checkpoints_root.glob("step_*"):
+        if not ckpt_dir.is_dir():
+            continue
+        step = _parse_step(ckpt_dir.name.removeprefix("step_"))
+        if step is None:
+            continue
+        if _checkpoint_weight_exists(ckpt_dir):
+            steps.append(step)
+    return sorted(set(steps))
+
+
+def _train_loss_by_step(run_dir: Path) -> dict[int, float]:
+    by_step: dict[int, float] = {}
+    for m in load_jsonl(run_dir / "metrics" / "train.jsonl"):
+        step = _parse_step(m.get("Step"))
+        if step is None:
+            continue
+        try:
+            by_step[step] = float(m["CTC Loss"])
+        except Exception:
+            continue
+    return by_step
+
+
 def find_run(root_dir: Path) -> Path:
     runs = [p for p in root_dir.glob("ws_*") if p.is_dir()]
     if len(runs) != 1:
@@ -43,42 +83,75 @@ def find_run(root_dir: Path) -> Path:
 
 def find_best_checkpoint(run_dir: Path):
     valid_file = run_dir / "metrics" / "valid.jsonl"
-    if not valid_file.exists():
-        raise RuntimeError(f"Missing validation metrics: {valid_file}")
-
     candidates = []
-    for m in load_jsonl(valid_file):
-        try:
-            step = int(m["Step"])
-            eval_loss = float(m["CTC Loss"])
-        except Exception:
-            continue
+    selection_source = "validation_ctc_loss"
 
-        ckpt = run_dir / "checkpoints" / f"step_{step}"
-        weight_file = ckpt / "model/pp_00/tp_00/sdp_00.pt"
-        if not weight_file.exists():
-            continue
+    if valid_file.exists():
+        for m in load_jsonl(valid_file):
+            step = _parse_step(m.get("Step"))
+            if step is None:
+                continue
+            try:
+                eval_loss = float(m["CTC Loss"])
+            except Exception:
+                continue
 
-        candidates.append(
+            ckpt = run_dir / "checkpoints" / f"step_{step}"
+            if not _checkpoint_weight_exists(ckpt):
+                continue
+
+            candidates.append(
+                {
+                    "step": step,
+                    "eval_loss": eval_loss,
+                    "train_loss": None,
+                    "wer": m.get("Word Error Rate (WER)"),
+                    "uer": m.get("Unit Error Rate (UER)"),
+                    "path": ckpt,
+                }
+            )
+
+    if candidates:
+        best = min(candidates, key=lambda x: x["eval_loss"])
+    else:
+        checkpoint_steps = _checkpoint_steps(run_dir)
+        if not checkpoint_steps:
+            raise RuntimeError("No checkpoints with model weights were found under run/checkpoints")
+
+        train_loss_map = _train_loss_by_step(run_dir)
+        candidates = [
             {
                 "step": step,
-                "eval_loss": eval_loss,
-                "wer": m.get("Word Error Rate (WER)"),
-                "uer": m.get("Unit Error Rate (UER)"),
-                "path": ckpt,
+                "eval_loss": None,
+                "train_loss": train_loss_map.get(step),
+                "wer": None,
+                "uer": None,
+                "path": run_dir / "checkpoints" / f"step_{step}",
             }
-        )
+            for step in checkpoint_steps
+        ]
 
-    if not candidates:
-        raise RuntimeError("No checkpoints found matching validation metrics")
+        train_candidates = [c for c in candidates if c["train_loss"] is not None]
+        if train_candidates:
+            selection_source = "train_ctc_loss"
+            best = min(train_candidates, key=lambda x: x["train_loss"])
+        else:
+            selection_source = "latest_step"
+            best = max(candidates, key=lambda x: x["step"])
 
-    best = min(candidates, key=lambda x: x["eval_loss"])
+    best["selection_source"] = selection_source
 
     print("\nBest checkpoint:")
     print(f"  Step: {best['step']}")
-    print(f"  CTC Loss: {best['eval_loss']}")
+    if best["eval_loss"] is not None:
+        print(f"  Validation CTC Loss: {best['eval_loss']}")
+    elif best["train_loss"] is not None:
+        print(f"  Train CTC Loss: {best['train_loss']}")
+    else:
+        print("  CTC Loss: n/a")
     print(f"  WER: {best['wer']}")
     print(f"  UER: {best['uer']}")
+    print(f"  Selection source: {best['selection_source']}")
     print(f"  Path: {best['path']}\n")
 
     return best, candidates
@@ -92,20 +165,31 @@ def generate_readme(run_dir: Path, best: dict, export_dir: Path):
     lines.append("# OmniASR Fine-tuned Model\n\n")
     lines.append("## Training Summary\n\n")
     lines.append(f"Best checkpoint: step_{best['step']}\n\n")
-    lines.append(f"Best validation CTC Loss: {fmt(best['eval_loss'], 4)}\n\n")
-    lines.append(f"Best validation WER: {fmt(best['wer'])}\n\n")
-    lines.append(f"Best validation UER: {fmt(best['uer'])}\n\n")
+    lines.append(f"Checkpoint selection source: {best.get('selection_source', 'unknown')}\n\n")
+    if best.get("eval_loss") is not None:
+        lines.append(f"Best validation CTC Loss: {fmt(best['eval_loss'], 4)}\n\n")
+        lines.append(f"Best validation WER: {fmt(best['wer'])}\n\n")
+        lines.append(f"Best validation UER: {fmt(best['uer'])}\n\n")
+    elif best.get("train_loss") is not None:
+        lines.append(f"Best train CTC Loss: {fmt(best['train_loss'], 4)}\n\n")
+        lines.append("Validation metrics: n/a (validation disabled)\n\n")
+    else:
+        lines.append("CTC Loss: n/a\n\n")
+        lines.append("Validation metrics: n/a (validation disabled)\n\n")
 
     lines.append("## Validation Metrics\n\n")
     lines.append("| Step | CTC Loss | WER | UER |\n")
     lines.append("|---|---|---|---|\n")
-    for m in valid_metrics:
-        lines.append(
-            f"| {m.get('Step', '')} "
-            f"| {fmt(m.get('CTC Loss'), 4)} "
-            f"| {fmt(m.get('Word Error Rate (WER)'))} "
-            f"| {fmt(m.get('Unit Error Rate (UER)'))} |\n"
-        )
+    if valid_metrics:
+        for m in valid_metrics:
+            lines.append(
+                f"| {m.get('Step', '')} "
+                f"| {fmt(m.get('CTC Loss'), 4)} "
+                f"| {fmt(m.get('Word Error Rate (WER)'))} "
+                f"| {fmt(m.get('Unit Error Rate (UER)'))} |\n"
+            )
+    else:
+        lines.append("| n/a | n/a | n/a | n/a |\n")
 
     lines.append("\n## Training Metrics\n\n")
     lines.append("| Step | CTC Loss | UER | WER | Learning Rate |\n")
