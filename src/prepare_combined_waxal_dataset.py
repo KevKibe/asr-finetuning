@@ -45,6 +45,21 @@ FRAME_COLUMNS = (
     "audio_num_samples",
 )
 
+# Extremely short clips can survive >0 checks but still collapse to zero
+# time steps after feature extraction/subsampling in validation.
+NUMERIC_MINIMUMS = {
+    "duration": 0.03,
+    "audio_duration": 0.03,
+    "duration_s": 0.03,
+    "duration_ms": 30.0,
+    "num_frames": 1.0,
+    "n_frames": 1.0,
+    "input_frames": 1.0,
+    "num_samples": 400.0,
+    "n_samples": 400.0,
+    "audio_num_samples": 400.0,
+}
+
 
 def canonical_language(language: str) -> str:
     return LANGUAGE_CANONICAL_MAP.get(language, language)
@@ -66,6 +81,8 @@ def _and_mask(current: pa.Array | None, condition: pa.Array | None) -> pa.Array 
 
 
 def _non_empty_text_condition(table: pa.Table) -> pa.Array | None:
+    condition = None
+
     for column_name in TEXT_COLUMNS:
         if column_name not in table.column_names:
             continue
@@ -74,13 +91,13 @@ def _non_empty_text_condition(table: pa.Table) -> pa.Array | None:
         text = pc.cast(column, pa.string(), safe=False)
         text = pc.fill_null(text, "")
         trimmed = pc.utf8_trim_whitespace(text)
+        non_empty = pc.greater(pc.utf8_length(trimmed), 0)
+        condition = _and_mask(condition, non_empty)
 
-        return pc.greater(pc.utf8_length(trimmed), 0)
-
-    return None
+    return condition
 
 
-def _positive_numeric_condition(table: pa.Table, candidates: tuple[str, ...]) -> pa.Array | None:
+def _minimum_numeric_condition(table: pa.Table, candidates: tuple[str, ...]) -> pa.Array | None:
     condition = None
 
     for column_name in candidates:
@@ -89,8 +106,9 @@ def _positive_numeric_condition(table: pa.Table, candidates: tuple[str, ...]) ->
 
         numeric = pc.cast(table[column_name], pa.float64(), safe=False)
         valid = pc.invert(pc.is_null(numeric))
-        positive = pc.greater(numeric, 0.0)
-        condition = _and_mask(condition, pc.and_(valid, positive))
+        minimum = NUMERIC_MINIMUMS.get(column_name, 1.0)
+        meets_minimum = pc.greater_equal(numeric, minimum)
+        condition = _and_mask(condition, pc.and_(valid, meets_minimum))
 
     return condition
 
@@ -98,8 +116,8 @@ def _positive_numeric_condition(table: pa.Table, candidates: tuple[str, ...]) ->
 def sanitize_rows(table: pa.Table) -> tuple[pa.Table, int]:
     keep_condition = None
     keep_condition = _and_mask(keep_condition, _non_empty_text_condition(table))
-    keep_condition = _and_mask(keep_condition, _positive_numeric_condition(table, DURATION_COLUMNS))
-    keep_condition = _and_mask(keep_condition, _positive_numeric_condition(table, FRAME_COLUMNS))
+    keep_condition = _and_mask(keep_condition, _minimum_numeric_condition(table, DURATION_COLUMNS))
+    keep_condition = _and_mask(keep_condition, _minimum_numeric_condition(table, FRAME_COLUMNS))
 
     if keep_condition is None:
         return table, 0
