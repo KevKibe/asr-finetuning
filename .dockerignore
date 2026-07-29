@@ -30,7 +30,7 @@ finetuning_output/
 *.log
 tensorboard/
 runs/
-
+omnilingual-asr/
 # Large datasets (will be downloaded in container)
 fleurs-*/
 *.parquet

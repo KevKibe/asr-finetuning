@@ -12,6 +12,8 @@ import shutil
 import sys
 from pathlib import Path
 
+import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 
@@ -32,6 +34,17 @@ LANGUAGE_CANONICAL_MAP = {
     "lin": "lin_Latn",
 }
 
+TEXT_COLUMNS = ("text", "transcript", "sentence", "normalized_text", "target_text")
+DURATION_COLUMNS = ("duration", "audio_duration", "duration_s", "duration_ms")
+FRAME_COLUMNS = (
+    "num_frames",
+    "n_frames",
+    "input_frames",
+    "num_samples",
+    "n_samples",
+    "audio_num_samples",
+)
+
 
 def canonical_language(language: str) -> str:
     return LANGUAGE_CANONICAL_MAP.get(language, language)
@@ -43,20 +56,90 @@ def destination_split(source_split: str) -> str:
     return "train"
 
 
+def _and_mask(current: pa.Array | None, condition: pa.Array | None) -> pa.Array | None:
+    if condition is None:
+        return current
+    if current is None:
+        return condition
+
+    return pc.and_(current, condition)
+
+
+def _non_empty_text_condition(table: pa.Table) -> pa.Array | None:
+    for column_name in TEXT_COLUMNS:
+        if column_name not in table.column_names:
+            continue
+
+        column = table[column_name]
+        text = pc.cast(column, pa.string(), safe=False)
+        text = pc.fill_null(text, "")
+        trimmed = pc.utf8_trim_whitespace(text)
+
+        return pc.greater(pc.utf8_length(trimmed), 0)
+
+    return None
+
+
+def _positive_numeric_condition(table: pa.Table, candidates: tuple[str, ...]) -> pa.Array | None:
+    condition = None
+
+    for column_name in candidates:
+        if column_name not in table.column_names:
+            continue
+
+        numeric = pc.cast(table[column_name], pa.float64(), safe=False)
+        valid = pc.invert(pc.is_null(numeric))
+        positive = pc.greater(numeric, 0.0)
+        condition = _and_mask(condition, pc.and_(valid, positive))
+
+    return condition
+
+
+def sanitize_rows(table: pa.Table) -> tuple[pa.Table, int]:
+    keep_condition = None
+    keep_condition = _and_mask(keep_condition, _non_empty_text_condition(table))
+    keep_condition = _and_mask(keep_condition, _positive_numeric_condition(table, DURATION_COLUMNS))
+    keep_condition = _and_mask(keep_condition, _positive_numeric_condition(table, FRAME_COLUMNS))
+
+    if keep_condition is None:
+        return table, 0
+
+    filtered = table.filter(keep_condition)
+    dropped_rows = table.num_rows - filtered.num_rows
+
+    return filtered, dropped_rows
+
+
 def copy_partition(
     source_dir: Path,
     destination_dir: Path,
     name_prefix: str,
-) -> int:
+) -> dict[str, int]:
     parquet_files = sorted(source_dir.glob("*.parquet"))
     if not parquet_files:
         raise FileNotFoundError(f"No parquet files found in expected partition: {source_dir}")
 
     destination_dir.mkdir(parents=True, exist_ok=True)
 
+    copied_files = 0
+    dropped_files = 0
+    rows_before = 0
+    rows_after = 0
+    dropped_rows = 0
+
     for parquet_file in parquet_files:
         destination_file = destination_dir / f"{name_prefix}-{parquet_file.name}"
         table = pq.read_table(parquet_file)
+        rows_before += table.num_rows
+
+        table, table_dropped_rows = sanitize_rows(table)
+        dropped_rows += table_dropped_rows
+
+        if table.num_rows == 0:
+            dropped_files += 1
+            continue
+
+        rows_after += table.num_rows
         language_columns = [column for column in ("language", "lang") if column in table.column_names]
 
         # Use Hive-style language partition as single source of truth.
@@ -64,12 +147,30 @@ def copy_partition(
             table = table.drop_columns(language_columns)
             pq.write_table(table, destination_file)
         else:
-            try:
-                destination_file.hardlink_to(parquet_file)
-            except OSError:
-                shutil.copy2(parquet_file, destination_file)
+            # If rows were filtered, rewrite the file to persist the filtered table.
+            if table_dropped_rows > 0:
+                pq.write_table(table, destination_file)
+            else:
+                try:
+                    destination_file.hardlink_to(parquet_file)
+                except OSError:
+                    shutil.copy2(parquet_file, destination_file)
 
-    return len(parquet_files)
+        copied_files += 1
+
+    if copied_files == 0:
+        raise ValueError(
+            "All rows were filtered out while sanitizing partition "
+            f"{source_dir}. Check source parquet contents for invalid rows."
+        )
+
+    return {
+        "parquet_files": copied_files,
+        "rows_before": rows_before,
+        "rows_after": rows_after,
+        "dropped_rows": dropped_rows,
+        "dropped_files": dropped_files,
+    }
 
 
 for root in waxal_roots:
@@ -107,7 +208,7 @@ for source_root in waxal_roots:
             / f"language={language}"
         )
         name_prefix = f"source-{source_name}-{source_split}"
-        num_files = copy_partition(language_dir, destination_dir, name_prefix)
+        partition_stats = copy_partition(language_dir, destination_dir, name_prefix)
 
         manifest["partitions"].append(
             {
@@ -117,7 +218,11 @@ for source_root in waxal_roots:
                 "destination_split": target_split,
                 "source_language": source_language,
                 "language": language,
-                "parquet_files": num_files,
+                "parquet_files": partition_stats["parquet_files"],
+                "rows_before": partition_stats["rows_before"],
+                "rows_after": partition_stats["rows_after"],
+                "dropped_rows": partition_stats["dropped_rows"],
+                "dropped_files": partition_stats["dropped_files"],
             }
         )
 
@@ -127,5 +232,6 @@ print(f"Combined Waxal dataset ready at: {combined_root}")
 for partition in manifest["partitions"]:
     print(
         f"  {partition['source_dataset']}:{partition['source_split']} -> "
-        f"{partition['destination_split']} ({partition['language']}, {partition['parquet_files']} parquet file(s))"
+        f"{partition['destination_split']} ({partition['language']}, {partition['parquet_files']} parquet file(s), "
+        f"dropped_rows={partition['dropped_rows']}, dropped_files={partition['dropped_files']})"
     )
