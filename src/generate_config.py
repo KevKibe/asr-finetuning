@@ -76,7 +76,7 @@ config_path = config_dir / config_name
 
 # Smoke test settings (minimal)
 if test_mode:
-    num_steps = 500
+    num_steps = 50
     # Smoke tests are for pipeline sanity only; skip validation to avoid
     # upstream CTC WER crashes from blank-only early hypotheses.
     validate_after = num_steps + 1
