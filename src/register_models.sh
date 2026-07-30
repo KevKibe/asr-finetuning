@@ -28,19 +28,19 @@ echo "Found models file at: $MODELS_YAML"
 # Models to add
 read -r -d '' MODEL_1 << 'EOF' || true
 ---
-name: omni-300M-5k
+name: omni-300M-15k
 model_family: wav2vec2_asr
 model_arch: 300m_v2
-checkpoint: https://huggingface.co/KevinKibe/omni-ASR-CTC-300M/resolve/main/checkpoints/step_5000/model/pp_00/tp_00/sdp_00.pt
+checkpoint: https://huggingface.co/KevinKibe/omni-ASR-CTC-300M-v2/resolve/main/checkpoints/step_15000/model/pp_00/tp_00/sdp_00.pt
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
 read -r -d '' MODEL_2 << 'EOF' || true
 ---
-name: omni-300M-10k
+name: omni-300M-20k
 model_family: wav2vec2_asr
 model_arch: 300m_v2
-checkpoint: https://huggingface.co/KevinKibe/omni-ASR-CTC-300M/resolve/main/checkpoints/step_10000/model/pp_00/tp_00/sdp_00.pt
+checkpoint: https://huggingface.co/KevinKibe/omni-ASR-CTC-300M-v2/resolve/main/checkpoints/step_20000/model/pp_00/tp_00/sdp_00.pt
 tokenizer_ref: omniASR_tokenizer_v1
 EOF
 
