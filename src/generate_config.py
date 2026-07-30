@@ -107,7 +107,7 @@ else:
         learning_rate = "5e-05"
         mixed_precision_dtype = "torch.float32"
     else:  # CTC model
-        num_steps = 20_000
+        num_steps = 10_000
         validate_after = 5_000
         validate_every = 5_000
         checkpoint_every = 5_000
